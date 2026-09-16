@@ -50,3 +50,16 @@ export interface Project {
   color: string;
   description?: string;
 }
+
+export type ApplicationStatus = 'applied' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+
+export interface Application {
+  id: string;
+  company_name: string;
+  position: string;
+  status: ApplicationStatus;
+  applied_date: string;
+  notes: string | null;
+  created_at?: string;
+  updated_at?: string;
+}

@@ -4,9 +4,11 @@ import {
   Search, 
   Plus, 
   ChevronDown, 
-  Check 
+  Check,
+  Database
 } from 'lucide-react';
 import { APP_LOGO_URL } from '../data/initialData';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 interface HeaderProps {
   onOpenNewTask: () => void;
@@ -16,6 +18,7 @@ interface HeaderProps {
   setPreviewMode?: (mode: 'auto' | 'desktop' | 'mobile') => void;
   activeWorkspace: string;
   setActiveWorkspace: (ws: string) => void;
+  supabaseConnected?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,7 +26,8 @@ export const Header: React.FC<HeaderProps> = ({
   searchQuery,
   onSearchChange,
   activeWorkspace,
-  setActiveWorkspace
+  setActiveWorkspace,
+  supabaseConnected
 }) => {
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
 
@@ -32,6 +36,8 @@ export const Header: React.FC<HeaderProps> = ({
     'FinTech Core Team',
     'Design System Hub'
   ];
+
+  const isConnected = supabaseConnected !== undefined ? supabaseConnected : isSupabaseConfigured;
 
   return (
     <header className="sticky top-0 left-0 right-0 z-40 h-16 bg-white border-b border-[#e5e7eb] px-4 lg:px-6">
@@ -50,6 +56,25 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
               <span className="text-[11px] text-gray-500 hidden sm:inline">Acme Corporation</span>
             </div>
+          </div>
+
+          <div className="hidden sm:block h-4 w-px bg-gray-200" />
+
+          {/* Supabase Status Pill */}
+          <div 
+            title={isConnected ? 'Supabase veritabanı aktif ve bağlı' : 'Supabase key bekleniyor (.env)'}
+            className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              isConnected 
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                : 'bg-amber-50 text-amber-700 border-amber-200'
+            }`}
+          >
+            <Database className="w-3 h-3" />
+            <span className="flex h-1.5 w-1.5 rounded-full relative">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isConnected ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+              <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${isConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+            </span>
+            <span>{isConnected ? 'Supabase Aktif' : 'Supabase: Key Bekleniyor'}</span>
           </div>
 
           <div className="hidden sm:block h-4 w-px bg-gray-200" />

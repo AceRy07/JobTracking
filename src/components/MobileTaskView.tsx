@@ -43,7 +43,7 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
   selectedProject = null,
   onSelectProject
 }) => {
-  const [filterChip, setFilterChip] = useState<'all' | 'Aktif' | 'Bitti' | 'mine' | 'selin'>('all');
+  const [filterChip, setFilterChip] = useState<'all' | 'Aktif' | 'Bitti' | 'mine' | 'arda'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Projeye göre görevler

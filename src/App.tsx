@@ -60,6 +60,19 @@ import {
 import { ActiveView, Project, Task, TaskStatus, getTaskAssignees } from './types';
 import { INITIAL_TASKS, PROJECTS, ASSIGNEES } from './data/initialData';
 import { CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { 
+  getApplications, 
+  addApplication, 
+  updateApplication, 
+  deleteApplication, 
+  applicationToTask, 
+  mapTaskStatusToAppStatus 
+} from './lib/applications';
+import { isSupabaseConfigured } from './lib/supabase';
+
+function isUuid(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
 
 // Eski isimleri yeni ekip listesine pürüzsüz eşleme yardımcısı
 function migrateAssignees(rawTasks: Task[]): Task[] {
@@ -178,6 +191,43 @@ export default function App() {
     }
   }, [projects]);
 
+  // Load from Supabase on mount if configured
+  useEffect(() => {
+    async function fetchSupabaseData() {
+      if (!isSupabaseConfigured) return;
+
+      try {
+        const remoteApps = await getApplications();
+        if (remoteApps && remoteApps.length > 0) {
+          const mappedTasks = remoteApps.map(applicationToTask);
+          setTasks(mappedTasks);
+
+          // Proje listesine eksik şirketleri ekle
+          const companyNames = Array.from(new Set(remoteApps.map(a => a.company_name).filter(Boolean)));
+          if (companyNames.length > 0) {
+            setProjects(prev => {
+              const existingNames = new Set(prev.map(p => p.name.toLowerCase()));
+              const colors = ['#4f46e5', '#006e2d', '#f59e0b', '#0284c7', '#7c3aed', '#db2777'];
+              const newProjects = companyNames
+                .filter(name => !existingNames.has(name.toLowerCase()))
+                .map((name, idx) => ({
+                  id: `p-supa-${Date.now()}-${idx}`,
+                  name,
+                  color: colors[idx % colors.length]
+                }));
+              return [...prev, ...newProjects];
+            });
+          }
+          showToast(`Supabase'den ${remoteApps.length} başvuru senkronize edildi.`);
+        }
+      } catch (err) {
+        console.warn('Supabase başlangıç verisi alınamadı:', err);
+      }
+    }
+
+    fetchSupabaseData();
+  }, []);
+
   // Keyboard Shortcuts Handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -275,9 +325,12 @@ export default function App() {
   }, [tasks, searchQuery, selectedProject, selectedAssignee, selectedStatus]);
 
   // Task Actions
-  const handleToggleComplete = (taskId: string) => {
+  const handleToggleComplete = async (taskId: string) => {
+    let targetTask: Task | undefined;
+
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
+        targetTask = t;
         const nextCompleted = !t.completed;
         const nextStatus = nextCompleted ? 'Bitti' : 'Aktif';
         showToast(nextCompleted ? `"${t.title}" tamamlandı olarak işaretlendi.` : `"${t.title}" aktifleştirildi.`);
@@ -290,9 +343,20 @@ export default function App() {
       }
       return t;
     }));
+
+    if (isSupabaseConfigured && isUuid(taskId) && targetTask) {
+      try {
+        const nextCompleted = !(targetTask as Task).completed;
+        await updateApplication(taskId, {
+          status: nextCompleted ? 'offer' : 'applied'
+        });
+      } catch (e) {
+        console.error('Supabase durum güncelleme hatası:', e);
+      }
+    }
   };
 
-  const handleUpdateStatus = (taskId: string, newStatus: TaskStatus) => {
+  const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return {
@@ -304,6 +368,16 @@ export default function App() {
       return t;
     }));
     showToast(`Görev durumu "${newStatus}" olarak güncellendi.`);
+
+    if (isSupabaseConfigured && isUuid(taskId)) {
+      try {
+        await updateApplication(taskId, {
+          status: mapTaskStatusToAppStatus(newStatus, newStatus === 'Bitti')
+        });
+      } catch (e) {
+        console.error('Supabase durum güncelleme hatası:', e);
+      }
+    }
   };
 
   const handleCreateProject = (projectData: { name: string; color: string; description?: string }) => {
@@ -338,10 +412,11 @@ export default function App() {
     }
   };
 
-  const handleCreateTask = (newTaskData: Omit<Task, 'id' | 'createdAt'>) => {
+  const handleCreateTask = async (newTaskData: Omit<Task, 'id' | 'createdAt'>) => {
+    const tempId = `task-${Date.now()}`;
     const newTask: Task = {
       ...newTaskData,
-      id: `task-${Date.now()}`,
+      id: tempId,
       createdAt: new Date().toISOString()
     };
     setTasks(prev => [newTask, ...prev]);
@@ -350,18 +425,66 @@ export default function App() {
     if (selectedProject && selectedProject.trim().toLowerCase() !== newTask.project.trim().toLowerCase()) {
       setSelectedProject(newTask.project);
     }
-    showToast(`"${newTask.title}" [${newTask.project}] projesine ve Tüm Projeler'e eklendi.`);
+    showToast(`"${newTask.title}" [${newTask.project}] kaydedildi.`);
+
+    // Supabase entegrasyonu: Veritabanına kaydet ve gerçek UUID ile güncelle
+    if (isSupabaseConfigured) {
+      try {
+        const createdRow = await addApplication({
+          company_name: newTaskData.project || 'Genel',
+          position: newTaskData.title,
+          status: mapTaskStatusToAppStatus(newTaskData.status, newTaskData.completed),
+          notes: newTaskData.details,
+          applied_date: new Date().toISOString().slice(0, 10)
+        });
+
+        if (createdRow && createdRow.id) {
+          setTasks(prev => prev.map(t => 
+            t.id === tempId 
+              ? { 
+                  ...t, 
+                  id: createdRow.id, 
+                  code: `APP-${createdRow.id.slice(0, 4).toUpperCase()}` 
+                } 
+              : t
+          ));
+        }
+      } catch (err) {
+        console.error('Supabase başvuru ekleme hatası:', err);
+      }
+    }
   };
 
-  const handleUpdateTask = (updatedTask: Task) => {
+  const handleUpdateTask = async (updatedTask: Task) => {
     setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
     showToast(`"${updatedTask.title}" güncellendi.`);
+
+    if (isSupabaseConfigured && isUuid(updatedTask.id)) {
+      try {
+        await updateApplication(updatedTask.id, {
+          company_name: updatedTask.project,
+          position: updatedTask.title,
+          notes: updatedTask.details,
+          status: mapTaskStatusToAppStatus(updatedTask.status, updatedTask.completed)
+        });
+      } catch (err) {
+        console.error('Supabase güncelleme hatası:', err);
+      }
+    }
   };
 
-  const handleDeleteTask = (taskId: string) => {
+  const handleDeleteTask = async (taskId: string) => {
     const target = tasks.find(t => t.id === taskId);
     setTasks(prev => prev.filter(t => t.id !== taskId));
     showToast(`"${target?.title || 'Görev'}" silindi.`);
+
+    if (isSupabaseConfigured && isUuid(taskId)) {
+      try {
+        await deleteApplication(taskId);
+      } catch (err) {
+        console.error('Supabase silme hatası:', err);
+      }
+    }
   };
 
   const handleDuplicateTask = (task: Task) => {
