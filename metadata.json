@@ -1,0 +1,6 @@
+{
+  "name": "İş Takip Paneli",
+  "description": "Modern, hızlı ve duyarlı iş ve proje yönetim paneli; görev takibi, pano, tablo ve analitik görünümleri.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
