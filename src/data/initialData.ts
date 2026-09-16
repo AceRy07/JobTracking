@@ -4,49 +4,49 @@ export const APP_LOGO_URL = 'https://lh3.googleusercontent.com/aida/AEtjO1Uy0oIY
 
 export const ASSIGNEES: Assignee[] = [
   {
-    id: 'selin',
-    name: 'Selin Yılmaz',
-    role: 'Ürün Lideri',
-    initials: 'SY',
-    avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC-2CzbB7iXYtZp-rUWeOtfBPxTsiJYZEExzuwLluBj30rlKhHl1aZ-QzsGsZ6nBOJvoGe7LUXUJB82mJvL55Z7EmbRkxY4gM-1TNXddHoPK-b80sEBKEL00wePksG4HsvRVGyP8Qup4CuFlh1HZlAuBhbndHS8cRegVrTnL6hZtZw_jia7rf--mE5chV0TaeS-hGGd2BqJmuZWk88W1YK0tJdNTmAxnO9Z3Wv-WVAONjVYuHNF0jFZyg',
+    id: 'arda',
+    name: 'Arda AKAR',
+    role: 'Ürün Lideri & Yönetici',
+    initials: 'AA',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     badgeBg: 'bg-indigo-100',
     badgeColor: 'text-indigo-800'
   },
   {
-    id: 'caner',
-    name: 'Caner Tekin',
-    role: 'Kıdemli Backend Mühendisi',
-    initials: 'CT',
-    avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB3Xp3z3_nG-UUIW73wilUydAaXqq--nJyasNdcoTVsE4EGFPXriBWh11DlMZnK7X5KBGpNwjaaupdggrwcAkfTshbxKmpw0-6YYMlhXSjlp8lamVxfYtYPWyMOnFhr3A7I8J6Gs1LNeSAp1gEwXYHvoSnbGlIJF7-3i4EE1bN-m0vAHi2wjcp0EadYrl02hBN7mpy_s9-ZkVsReUbiHnGAh2-_noU4VxZxgw8uibg6T8GQPY9Lrf4Raw',
+    id: 'evsen',
+    name: 'Evşen KÖSEM',
+    role: 'Kıdemli Yazılım Mühendisi',
+    initials: 'EK',
+    avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
     badgeBg: 'bg-emerald-100',
     badgeColor: 'text-emerald-800'
   },
   {
-    id: 'ayse',
-    name: 'Ayşe Kaya',
+    id: 'murat',
+    name: 'Murat YÖNEY',
     role: 'UI/UX Tasarımcı',
-    initials: 'AK',
-    avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA1YZkI-ornpO0L63leQ5549UZxTvc0AB3lvOiyZVyVTYXJfYrt_rsJK0RZkEOblZ6f1-0Bb7pQa0DtBFVEpGIbYDBHNy3aQjcoxBGVU8SkSkXw5QfSXKGYKIAxEsDr78KLCC6_4Y1VlUQCtrTc1yl7iQzjuBr3DxtM8Gy2jyWRTJerZi0kiriVItSUCqQybBsOy4UfWaXlK7c0m8sg9SIU1LI7mUg92BiMbuibwpEK84Ax8VpiX2GCpg',
+    initials: 'MY',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     badgeBg: 'bg-amber-100',
     badgeColor: 'text-amber-800'
   },
   {
-    id: 'burak',
-    name: 'Burak Demir',
-    role: 'QA & Güvenlik Uzmanı',
-    initials: 'BD',
-    avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDaBSKmlrUfhMsJ5beLFeGOVaMvM2rpfU37H5wKr2DCIvrPnLE2lJOLfC4Dy8kAPetNDVpOqFPjJnNmajtvWvGltup815NM7eGkD-4RShHMwOVbvtucaOg4yj6Gf67T8LTP3TfB3G__-py9aloHk0ecycjYve5afab171FByeGO0UsNFQlBm3_5K3jPqDTBaiCLQ9-dPxiF-OV_vRMQiO2HB7do53wabdVycCW8rxciaZ0FTzDg1mR6ug',
-    badgeBg: 'bg-slate-100',
-    badgeColor: 'text-slate-800'
-  },
-  {
-    id: 'mert',
-    name: 'Mert Can Demir',
-    role: 'Entegrasyon Geliştirici',
-    initials: 'MD',
-    avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDaBSKmlrUfhMsJ5beLFeGOVaMvM2rpfU37H5wKr2DCIvrPnLE2lJOLfC4Dy8kAPetNDVpOqFPjJnNmajtvWvGltup815NM7eGkD-4RShHMwOVbvtucaOg4yj6Gf67T8LTP3TfB3G__-py9aloHk0ecycjYve5afab171FByeGO0UsNFQlBm3_5K3jPqDTBaiCLQ9-dPxiF-OV_vRMQiO2HB7do53wabdVycCW8rxciaZ0FTzDg1mR6ug',
+    id: 'can',
+    name: 'Can DERE',
+    role: 'Frontend & Mobil Geliştirici',
+    initials: 'CD',
+    avatarUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80',
     badgeBg: 'bg-blue-100',
     badgeColor: 'text-blue-800'
+  },
+  {
+    id: 'simay',
+    name: 'Simay AKAR',
+    role: 'QA & Test Mühendisi',
+    initials: 'SA',
+    avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
+    badgeBg: 'bg-purple-100',
+    badgeColor: 'text-purple-800'
   }
 ];
 

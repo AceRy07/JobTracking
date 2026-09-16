@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Plus, 
@@ -24,6 +24,7 @@ interface NewTaskModalProps {
   onSaveTask: (task: Omit<Task, 'id' | 'createdAt'>) => void;
   projects: Project[];
   assignees: Assignee[];
+  defaultProject?: string | null;
   onOpenNewProjectModal?: () => void;
 }
 
@@ -33,6 +34,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   onSaveTask,
   projects,
   assignees,
+  defaultProject,
   onOpenNewProjectModal
 }) => {
   // Default dates for datetime-local
@@ -55,7 +57,24 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [project, setProject] = useState(projects[0]?.name || 'Mobil Uygulama v2');
   
   // Multi-assignee state
-  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([assignees[0]?.id || 'selin']);
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([assignees[0]?.id || 'arda']);
+
+  // Sync project & reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (defaultProject && projects.some(p => p.name.trim().toLowerCase() === defaultProject.trim().toLowerCase())) {
+        const matching = projects.find(p => p.name.trim().toLowerCase() === defaultProject.trim().toLowerCase());
+        setProject(matching ? matching.name : defaultProject);
+      } else if (projects.length > 0) {
+        setProject(projects[0].name);
+      }
+
+      if (assignees.length > 0) {
+        setSelectedAssigneeIds([assignees[0].id]);
+      }
+      setCode(`TASK-${Math.floor(100 + Math.random() * 900)}`);
+    }
+  }, [isOpen, defaultProject, projects, assignees]);
 
   // DateTime states
   const [startDateTime, setStartDateTime] = useState<string>(getDefaultStartDate);
@@ -188,6 +207,13 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                   <option key={p.id} value={p.name}>{p.name}</option>
                 ))}
               </select>
+              <div className="flex items-center gap-1.5 mt-1 text-[11px] text-gray-500">
+                <span 
+                  className="w-2 h-2 rounded-full shrink-0" 
+                  style={{ backgroundColor: projects.find(p => p.name === project)?.color || '#6366f1' }}
+                />
+                <span>Bu iş hem <strong>{project}</strong> hem de <strong>Tüm Projeler</strong> panosunda görünecektir.</span>
+              </div>
             </div>
           </div>
 

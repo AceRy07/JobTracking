@@ -61,12 +61,55 @@ import { ActiveView, Project, Task, TaskStatus, getTaskAssignees } from './types
 import { INITIAL_TASKS, PROJECTS, ASSIGNEES } from './data/initialData';
 import { CheckCircle, AlertCircle, Info } from 'lucide-react';
 
+// Eski isimleri yeni ekip listesine pürüzsüz eşleme yardımcısı
+function migrateAssignees(rawTasks: Task[]): Task[] {
+  const nameMap: { [key: string]: typeof ASSIGNEES[0] } = {
+    'selin yılmaz': ASSIGNEES[0],
+    'selin yilmaz': ASSIGNEES[0],
+    'caner tekin': ASSIGNEES[1],
+    'ayşe kaya': ASSIGNEES[2],
+    'ayse kaya': ASSIGNEES[2],
+    'burak demir': ASSIGNEES[3],
+    'mert can demir': ASSIGNEES[4]
+  };
+
+  return rawTasks.map(t => {
+    let updatedAssignees = t.assignees ? t.assignees.map(a => {
+      const match = nameMap[a.name.toLowerCase()];
+      return match || a;
+    }) : [];
+
+    let updatedAssignee = t.assignee;
+    if (updatedAssignee) {
+      const match = nameMap[updatedAssignee.name.toLowerCase()];
+      if (match) updatedAssignee = match;
+    }
+
+    if (updatedAssignees.length === 0 && updatedAssignee) {
+      updatedAssignees = [updatedAssignee];
+    } else if (updatedAssignees.length > 0 && !updatedAssignee) {
+      updatedAssignee = updatedAssignees[0];
+    }
+
+    return {
+      ...t,
+      assignee: updatedAssignee || ASSIGNEES[0],
+      assignees: updatedAssignees.length > 0 ? updatedAssignees : [ASSIGNEES[0]]
+    };
+  });
+}
+
 export default function App() {
   // Persistence state
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
       const saved = localStorage.getItem('is_takip_tasks');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return migrateAssignees(parsed);
+        }
+      }
     } catch {
       // fallback
     }
@@ -209,7 +252,7 @@ export default function App() {
       }
 
       // Project filter
-      if (selectedProject && t.project !== selectedProject) {
+      if (selectedProject && t.project?.trim().toLowerCase() !== selectedProject.trim().toLowerCase()) {
         return false;
       }
 
@@ -264,14 +307,16 @@ export default function App() {
   };
 
   const handleCreateProject = (projectData: { name: string; color: string; description?: string }) => {
+    const trimmedName = projectData.name.trim();
     const newProject: Project = {
       id: `p-${Date.now()}`,
-      name: projectData.name,
+      name: trimmedName,
       color: projectData.color,
       description: projectData.description
     };
     setProjects(prev => [...prev, newProject]);
-    showToast(`"${newProject.name}" projesi başarıyla oluşturuldu.`);
+    setSelectedProject(newProject.name);
+    showToast(`"${newProject.name}" projesi oluşturuldu ve seçildi.`);
   };
 
   const handleDeleteProject = (projectId: string, deleteTasks: boolean) => {
@@ -300,7 +345,12 @@ export default function App() {
       createdAt: new Date().toISOString()
     };
     setTasks(prev => [newTask, ...prev]);
-    showToast(`"${newTask.title}" başarıyla oluşturuldu.`);
+
+    // Eğer kullanıcı başka bir projede iken farklı bir projeye görev eklediyse, o projeye geçerek görevi görmesini sağla
+    if (selectedProject && selectedProject.trim().toLowerCase() !== newTask.project.trim().toLowerCase()) {
+      setSelectedProject(newTask.project);
+    }
+    showToast(`"${newTask.title}" [${newTask.project}] projesine ve Tüm Projeler'e eklendi.`);
   };
 
   const handleUpdateTask = (updatedTask: Task) => {
@@ -552,6 +602,7 @@ export default function App() {
         onSaveTask={handleCreateTask}
         projects={projects}
         assignees={ASSIGNEES}
+        defaultProject={selectedProject}
         onOpenNewProjectModal={() => setIsNewProjectOpen(true)}
       />
 
@@ -601,6 +652,7 @@ export default function App() {
         isOpen={isReportsOpen}
         onClose={() => setIsReportsOpen(false)}
         tasks={tasks}
+        projects={projects}
       />
 
       <ShortcutsModal

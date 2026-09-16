@@ -1,17 +1,19 @@
 import React from 'react';
 import { X, BarChart3, TrendingUp, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
-import { Task } from '../types';
+import { Task, Project } from '../types';
 
 interface ReportsModalProps {
   isOpen: boolean;
   onClose: () => void;
   tasks: Task[];
+  projects?: Project[];
 }
 
 export const ReportsModal: React.FC<ReportsModalProps> = ({
   isOpen,
   onClose,
-  tasks
+  tasks,
+  projects = []
 }) => {
   if (!isOpen) return null;
 
@@ -19,6 +21,11 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
   const completed = tasks.filter(t => t.status === 'Bitti' || t.completed).length;
   const active = tasks.filter(t => t.status === 'Aktif').length;
   const critical = tasks.filter(t => t.status === 'Kritik').length;
+
+  // Extract all distinct project names
+  const projectNames = projects.length > 0
+    ? projects.map(p => p.name)
+    : Array.from(new Set(tasks.map(t => t.project))).filter(Boolean);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150">
@@ -62,8 +69,8 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
             Projelere Göre Dağılım
           </h4>
           <div className="space-y-2 text-xs">
-            {['Mobil Uygulama v2', 'Web Revizyonu', 'Entegrasyonlar'].map((proj) => {
-              const count = tasks.filter(t => t.project === proj).length;
+            {projectNames.map((proj) => {
+              const count = tasks.filter(t => t.project?.trim().toLowerCase() === proj.trim().toLowerCase()).length;
               const pct = total > 0 ? Math.round((count / total) * 100) : 0;
               return (
                 <div key={proj} className="p-2.5 rounded-lg border border-gray-100 bg-gray-50/50">

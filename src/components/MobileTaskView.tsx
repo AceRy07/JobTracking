@@ -68,7 +68,7 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
 
     if (filterChip === 'Aktif') return t.status === 'Aktif' || t.status === 'Kritik';
     if (filterChip === 'Bitti') return t.status === 'Bitti' || t.completed;
-    if (filterChip === 'mine' || filterChip === 'selin') return taskAssignees.some(a => a.name.includes('Selin'));
+    if (filterChip === 'mine' || filterChip === 'arda') return taskAssignees.some(a => a.name.includes('Arda') || a.id === 'arda');
     return true;
   });
 
@@ -223,19 +223,19 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
           </button>
 
           <button
-            onClick={() => setFilterChip('selin')}
+            onClick={() => setFilterChip('arda')}
             className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all shadow-xs flex items-center gap-1 ${
-              filterChip === 'selin'
+              filterChip === 'arda'
                 ? 'bg-indigo-600 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-100'
             }`}
           >
             <img
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_YQjlqstyWkmhdVa1fL01fwzBZsNEXHKxOK9qHeo5lRm_8myqJFyJlAWYuDhWLTa1fyptsU5WQBLpnyPHoQZP34T92RZudQHbGZGh5TlM4z1OC2DkQ1KL7KnV2IGaWLD-oAzvJwS1btkeZjGpqTxWIzaHPO3E0OiImKyT-gg7BIPezaMeZhFMCuzvy-1NVjFk0Itd_yaJ7pmmD0KxqxtFtqI9oyp0dCkvQU07IOkch_OWiyqgYeB94g"
-              alt="Selin"
+              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+              alt="Arda"
               className="w-3.5 h-3.5 rounded-full object-cover"
             />
-            <span>Selin Y.</span>
+            <span>Arda A.</span>
           </button>
         </div>
       </section>
