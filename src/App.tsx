@@ -60,19 +60,24 @@ import {
 import { ActiveView, Project, Task, TaskStatus, getTaskAssignees } from './types';
 import { INITIAL_TASKS, PROJECTS, ASSIGNEES } from './data/initialData';
 import { CheckCircle, AlertCircle, Info } from 'lucide-react';
-import { 
-  getApplications, 
-  addApplication, 
-  updateApplication, 
-  deleteApplication, 
-  applicationToTask, 
-  mapTaskStatusToAppStatus 
-} from './lib/applications';
-import { isSupabaseConfigured } from './lib/supabase';
-
-function isUuid(id: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-}
+import {
+  getTasks,
+  addTask,
+  updateTask,
+  deleteTask,
+  taskRowToTask,
+  taskToTaskInsert,
+  subscribeToTasks
+} from './lib/tasks';
+import {
+  getProjects,
+  addProject,
+  deleteProject,
+  projectRowToProject,
+  projectToProjectInsert,
+  subscribeToProjects
+} from './lib/projects';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 // Eski isimleri yeni ekip listesine pürüzsüz eşleme yardımcısı
 function migrateAssignees(rawTasks: Task[]): Task[] {
@@ -191,41 +196,59 @@ export default function App() {
     }
   }, [projects]);
 
-  // Load from Supabase on mount if configured
+  // Supabase ile başlangıç senkronizasyonu ve gerçek zamanlı (Realtime) dinleme
   useEffect(() => {
-    async function fetchSupabaseData() {
-      if (!isSupabaseConfigured) return;
+    if (!isSupabaseConfigured) return;
 
+    let isMounted = true;
+
+    async function bootstrapSync() {
       try {
-        const remoteApps = await getApplications();
-        if (remoteApps && remoteApps.length > 0) {
-          const mappedTasks = remoteApps.map(applicationToTask);
-          setTasks(mappedTasks);
+        const [remoteProjects, remoteTasks] = await Promise.all([getProjects(), getTasks()]);
+        if (!isMounted) return;
 
-          // Proje listesine eksik şirketleri ekle
-          const companyNames = Array.from(new Set(remoteApps.map(a => a.company_name).filter(Boolean)));
-          if (companyNames.length > 0) {
-            setProjects(prev => {
-              const existingNames = new Set(prev.map(p => p.name.toLowerCase()));
-              const colors = ['#4f46e5', '#006e2d', '#f59e0b', '#0284c7', '#7c3aed', '#db2777'];
-              const newProjects = companyNames
-                .filter(name => !existingNames.has(name.toLowerCase()))
-                .map((name, idx) => ({
-                  id: `p-supa-${Date.now()}-${idx}`,
-                  name,
-                  color: colors[idx % colors.length]
-                }));
-              return [...prev, ...newProjects];
-            });
-          }
-          showToast(`Supabase'den ${remoteApps.length} başvuru senkronize edildi.`);
+        if (remoteProjects.length > 0) {
+          setProjects(remoteProjects.map(projectRowToProject));
+        } else if (projects.length > 0) {
+          // İlk kurulum: mevcut yerel projeleri Supabase'e taşı
+          const created = await Promise.all(projects.map(p => addProject(projectToProjectInsert(p))));
+          if (isMounted) setProjects(created.map(projectRowToProject));
         }
+
+        if (remoteTasks.length > 0) {
+          setTasks(remoteTasks.map(taskRowToTask));
+        } else if (tasks.length > 0) {
+          // İlk kurulum: mevcut yerel görevleri Supabase'e taşı
+          const created = await Promise.all(tasks.map(t => addTask(taskToTaskInsert(t))));
+          if (isMounted) setTasks(created.map(taskRowToTask));
+        }
+
+        showToast('Supabase ile senkronize edildi.');
       } catch (err) {
         console.warn('Supabase başlangıç verisi alınamadı:', err);
       }
     }
 
-    fetchSupabaseData();
+    bootstrapSync();
+
+    const tasksChannel = subscribeToTasks({
+      onInsert: (row) => setTasks(prev => (prev.some(t => t.id === row.id) ? prev : [taskRowToTask(row), ...prev])),
+      onUpdate: (row) => setTasks(prev => prev.map(t => (t.id === row.id ? taskRowToTask(row) : t))),
+      onDelete: (id) => setTasks(prev => prev.filter(t => t.id !== id))
+    });
+
+    const projectsChannel = subscribeToProjects({
+      onInsert: (row) => setProjects(prev => (prev.some(p => p.id === row.id) ? prev : [...prev, projectRowToProject(row)])),
+      onUpdate: (row) => setProjects(prev => prev.map(p => (p.id === row.id ? projectRowToProject(row) : p))),
+      onDelete: (id) => setProjects(prev => prev.filter(p => p.id !== id))
+    });
+
+    return () => {
+      isMounted = false;
+      if (tasksChannel) supabase.removeChannel(tasksChannel);
+      if (projectsChannel) supabase.removeChannel(projectsChannel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keyboard Shortcuts Handler
@@ -344,11 +367,13 @@ export default function App() {
       return t;
     }));
 
-    if (isSupabaseConfigured && isUuid(taskId) && targetTask) {
+    if (isSupabaseConfigured && targetTask) {
+      const nextCompleted = !targetTask.completed;
       try {
-        const nextCompleted = !(targetTask as Task).completed;
-        await updateApplication(taskId, {
-          status: nextCompleted ? 'offer' : 'applied'
+        await updateTask(taskId, {
+          completed: nextCompleted,
+          status: nextCompleted ? 'Bitti' : 'Aktif',
+          due_status_note: nextCompleted ? 'Tamamlandı' : (targetTask.dueStatusNote ?? null)
         });
       } catch (e) {
         console.error('Supabase durum güncelleme hatası:', e);
@@ -369,10 +394,11 @@ export default function App() {
     }));
     showToast(`Görev durumu "${newStatus}" olarak güncellendi.`);
 
-    if (isSupabaseConfigured && isUuid(taskId)) {
+    if (isSupabaseConfigured) {
       try {
-        await updateApplication(taskId, {
-          status: mapTaskStatusToAppStatus(newStatus, newStatus === 'Bitti')
+        await updateTask(taskId, {
+          status: newStatus,
+          completed: newStatus === 'Bitti'
         });
       } catch (e) {
         console.error('Supabase durum güncelleme hatası:', e);
@@ -380,10 +406,11 @@ export default function App() {
     }
   };
 
-  const handleCreateProject = (projectData: { name: string; color: string; description?: string }) => {
+  const handleCreateProject = async (projectData: { name: string; color: string; description?: string }) => {
     const trimmedName = projectData.name.trim();
+    const tempId = `p-${Date.now()}`;
     const newProject: Project = {
-      id: `p-${Date.now()}`,
+      id: tempId,
       name: trimmedName,
       color: projectData.color,
       description: projectData.description
@@ -391,13 +418,24 @@ export default function App() {
     setProjects(prev => [...prev, newProject]);
     setSelectedProject(newProject.name);
     showToast(`"${newProject.name}" projesi oluşturuldu ve seçildi.`);
+
+    if (isSupabaseConfigured) {
+      try {
+        const createdRow = await addProject(projectToProjectInsert(newProject));
+        setProjects(prev => prev.map(p => p.id === tempId ? projectRowToProject(createdRow) : p));
+      } catch (err) {
+        console.error('Supabase proje ekleme hatası:', err);
+      }
+    }
   };
 
-  const handleDeleteProject = (projectId: string, deleteTasks: boolean) => {
+  const handleDeleteProject = async (projectId: string, deleteTasks: boolean) => {
     const target = projects.find(p => p.id === projectId);
     if (!target) return;
 
     setProjects(prev => prev.filter(p => p.id !== projectId));
+
+    const affectedTasks = tasks.filter(t => t.project === target.name);
 
     if (deleteTasks) {
       setTasks(prev => prev.filter(t => t.project !== target.name));
@@ -409,6 +447,19 @@ export default function App() {
 
     if (selectedProject === target.name) {
       setSelectedProject(null);
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        await deleteProject(projectId);
+        if (deleteTasks) {
+          await Promise.all(affectedTasks.map(t => deleteTask(t.id)));
+        } else {
+          await Promise.all(affectedTasks.map(t => updateTask(t.id, { project: 'Genel' })));
+        }
+      } catch (err) {
+        console.error('Supabase proje silme hatası:', err);
+      }
     }
   };
 
@@ -430,27 +481,10 @@ export default function App() {
     // Supabase entegrasyonu: Veritabanına kaydet ve gerçek UUID ile güncelle
     if (isSupabaseConfigured) {
       try {
-        const createdRow = await addApplication({
-          company_name: newTaskData.project || 'Genel',
-          position: newTaskData.title,
-          status: mapTaskStatusToAppStatus(newTaskData.status, newTaskData.completed),
-          notes: newTaskData.details,
-          applied_date: new Date().toISOString().slice(0, 10)
-        });
-
-        if (createdRow && createdRow.id) {
-          setTasks(prev => prev.map(t => 
-            t.id === tempId 
-              ? { 
-                  ...t, 
-                  id: createdRow.id, 
-                  code: `APP-${createdRow.id.slice(0, 4).toUpperCase()}` 
-                } 
-              : t
-          ));
-        }
+        const createdRow = await addTask(taskToTaskInsert(newTask));
+        setTasks(prev => prev.map(t => t.id === tempId ? taskRowToTask(createdRow) : t));
       } catch (err) {
-        console.error('Supabase başvuru ekleme hatası:', err);
+        console.error('Supabase görev ekleme hatası:', err);
       }
     }
   };
@@ -459,14 +493,9 @@ export default function App() {
     setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
     showToast(`"${updatedTask.title}" güncellendi.`);
 
-    if (isSupabaseConfigured && isUuid(updatedTask.id)) {
+    if (isSupabaseConfigured) {
       try {
-        await updateApplication(updatedTask.id, {
-          company_name: updatedTask.project,
-          position: updatedTask.title,
-          notes: updatedTask.details,
-          status: mapTaskStatusToAppStatus(updatedTask.status, updatedTask.completed)
-        });
+        await updateTask(updatedTask.id, taskToTaskInsert(updatedTask));
       } catch (err) {
         console.error('Supabase güncelleme hatası:', err);
       }
@@ -478,25 +507,35 @@ export default function App() {
     setTasks(prev => prev.filter(t => t.id !== taskId));
     showToast(`"${target?.title || 'Görev'}" silindi.`);
 
-    if (isSupabaseConfigured && isUuid(taskId)) {
+    if (isSupabaseConfigured) {
       try {
-        await deleteApplication(taskId);
+        await deleteTask(taskId);
       } catch (err) {
         console.error('Supabase silme hatası:', err);
       }
     }
   };
 
-  const handleDuplicateTask = (task: Task) => {
+  const handleDuplicateTask = async (task: Task) => {
+    const tempId = `task-${Date.now()}`;
     const duplicated: Task = {
       ...task,
-      id: `task-${Date.now()}`,
+      id: tempId,
       code: `CPY-${Math.floor(100 + Math.random() * 900)}`,
       title: `${task.title} (Kopya)`,
       createdAt: new Date().toISOString()
     };
     setTasks(prev => [duplicated, ...prev]);
     showToast(`"${duplicated.title}" çoğaltıldı.`);
+
+    if (isSupabaseConfigured) {
+      try {
+        const createdRow = await addTask(taskToTaskInsert(duplicated));
+        setTasks(prev => prev.map(t => t.id === tempId ? taskRowToTask(createdRow) : t));
+      } catch (err) {
+        console.error('Supabase görev çoğaltma hatası:', err);
+      }
+    }
   };
 
   const handleResetFilters = () => {
