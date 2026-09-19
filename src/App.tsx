@@ -58,7 +58,7 @@ import {
 } from './components/DeleteProjectModal';
 
 import { ActiveView, Assignee, Project, Task, TaskStatus, getTaskAssignees } from './types';
-import { CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle, AlertCircle, Info, Pencil, Trash2, X } from 'lucide-react';
 import {
   getTasks,
   addTask,
@@ -79,11 +79,67 @@ import {
 import {
   getTeamMembers,
   addTeamMember,
+  updateTeamMember,
+  deleteTeamMember,
   assigneeToTeamMemberInsert,
   teamMemberRowToAssignee,
   subscribeToTeamMembers
 } from './lib/teamMembers';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
+
+const MobileTeamMemberRow: React.FC<{
+  member: Assignee;
+  onUpdate: (memberId: string, name: string, role: string) => void;
+  onDelete: (memberId: string) => void;
+}> = ({ member, onUpdate, onDelete }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(member.name);
+  const [role, setRole] = useState(member.role);
+
+  if (isEditing) {
+    return (
+      <form
+        className="flex items-center gap-2 rounded-xl border border-indigo-100 bg-white px-2.5 py-2.5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onUpdate(member.id, name, role);
+          setIsEditing(false);
+        }}
+      >
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          <input value={name} onChange={(event) => setName(event.target.value)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500" aria-label="Ekip üyesi adı" />
+          <input value={role} onChange={(event) => setRole(event.target.value)} className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500" aria-label="Ekip üyesi rolü" />
+        </div>
+        <button type="submit" className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Kaydet">
+          <CheckCircle className="w-4 h-4" />
+        </button>
+        <button type="button" onClick={() => setIsEditing(false)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg" title="Vazgeç">
+          <X className="w-4 h-4" />
+        </button>
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-2.5 py-2.5">
+      <div className="flex items-center gap-3 min-w-0">
+        <img src={member.avatarUrl} alt={member.name} className="w-9 h-9 rounded-full object-cover border border-gray-200" />
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-gray-900 truncate">{member.name}</div>
+          <div className="text-[11px] text-gray-500 truncate">{member.role}</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button type="button" onClick={() => { setName(member.name); setRole(member.role); setIsEditing(true); }} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Ekip üyesini düzenle">
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button type="button" onClick={() => onDelete(member.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Ekip üyesini kaldır">
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 // Eski isimleri yeni ekip listesine pürüzsüz eşleme yardımcısı
 function migrateAssignees(rawTasks: Task[], fallbackAssignee: Assignee): Task[] {
@@ -172,6 +228,8 @@ export default function App() {
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [mobileMemberName, setMobileMemberName] = useState('');
+  const [mobileMemberRole, setMobileMemberRole] = useState('');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -461,6 +519,76 @@ export default function App() {
     }
   };
 
+  const handleMobileAddTeamMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = mobileMemberName.trim();
+    if (!trimmedName) return;
+
+    handleAddTeamMember({
+      id: `member-${Date.now()}`,
+      name: trimmedName,
+      role: mobileMemberRole.trim() || 'Üye',
+      initials: trimmedName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part[0]?.toUpperCase() || '')
+        .join('') || 'U',
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      badgeBg: 'bg-indigo-100',
+      badgeColor: 'text-indigo-800'
+    });
+
+    setMobileMemberName('');
+    setMobileMemberRole('');
+  };
+
+  const handleUpdateTeamMember = async (memberId: string, name: string, role: string) => {
+    const trimmedName = name.trim();
+    const trimmedRole = role.trim() || 'Üye';
+    const previousMember = teamMembers.find(member => member.id === memberId);
+    if (!previousMember || !trimmedName) return;
+
+    const initials = trimmedName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0]?.toUpperCase() || '')
+      .join('') || 'U';
+    const optimisticMember = { ...previousMember, name: trimmedName, role: trimmedRole, initials };
+    setTeamMembers(prev => prev.map(member => member.id === memberId ? optimisticMember : member));
+    showToast(`"${trimmedName}" bilgileri güncellendi.`);
+
+    if (isSupabaseConfigured) {
+      try {
+        const updatedRow = await updateTeamMember(memberId, { name: trimmedName, role: trimmedRole });
+        setTeamMembers(prev => prev.map(member => member.id === memberId ? teamMemberRowToAssignee(updatedRow) : member));
+      } catch (err) {
+        setTeamMembers(prev => prev.map(member => member.id === memberId ? previousMember : member));
+        console.error('Supabase ekip üyesi güncelleme hatası:', err);
+        showToast('Ekip üyesi güncellenemedi.');
+      }
+    }
+  };
+
+  const handleDeleteTeamMember = async (memberId: string) => {
+    const target = teamMembers.find(member => member.id === memberId);
+    if (!target || !window.confirm(`"${target.name}" ekipten kaldırılsın mı?`)) return;
+
+    setTeamMembers(prev => prev.filter(member => member.id !== memberId));
+    showToast(`"${target.name}" ekipten kaldırıldı.`);
+
+    if (isSupabaseConfigured) {
+      try {
+        await deleteTeamMember(memberId);
+      } catch (err) {
+        setTeamMembers(prev => [...prev, target]);
+        console.error('Supabase ekip üyesi silme hatası:', err);
+        showToast('Ekip üyesi kaldırılamadı.');
+      }
+    }
+  };
+
   const handleCreateProject = async (projectData: { name: string; color: string; description?: string }) => {
     const trimmedName = projectData.name.trim();
     const tempId = `p-${Date.now()}`;
@@ -655,17 +783,64 @@ export default function App() {
         {previewMode === 'mobile' ? (
           <div className="w-full flex justify-center py-6 px-4 bg-[#eceef7]">
             <div className="w-full max-w-md bg-[#f9f9ff] rounded-3xl shadow-2xl overflow-hidden border border-gray-300 relative min-h-[750px] p-4">
-              <MobileTaskView
-                tasks={tasks}
-                projects={projects}
-                selectedProject={selectedProject}
-                onSelectProject={setSelectedProject}
-                onToggleComplete={handleToggleComplete}
-                onEditTask={setEditingTask}
-                onSelectTask={setInspectingTask}
-                onOpenNewTask={() => setIsNewTaskOpen(true)}
-                onOpenFiltersModal={() => setIsSettingsOpen(true)}
-              />
+              {mobileTab === 'ekip' ? (
+                <div className="w-full max-w-md mx-auto flex flex-col gap-3.5 pb-24">
+                  <section className="bg-white rounded-2xl border border-gray-100 p-4 shadow-xs">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold text-gray-900">Ekip</h3>
+                      <span className="text-[11px] text-gray-500">{teamMembers.length} üye</span>
+                    </div>
+
+                    <form onSubmit={handleMobileAddTeamMember} className="flex flex-col gap-2.5">
+                      <input
+                        type="text"
+                        value={mobileMemberName}
+                        onChange={(e) => setMobileMemberName(e.target.value)}
+                        placeholder="Yeni ekip arkadaşı adı"
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500"
+                      />
+                      <input
+                        type="text"
+                        value={mobileMemberRole}
+                        onChange={(e) => setMobileMemberRole(e.target.value)}
+                        placeholder="Rol (opsiyonel)"
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!mobileMemberName.trim()}
+                        className="w-full px-3 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 rounded-lg"
+                      >
+                        Ekip Üyesi Ekle
+                      </button>
+                    </form>
+                  </section>
+
+                  <section className="bg-white rounded-2xl border border-gray-100 p-3 shadow-xs">
+                    <div className="space-y-2.5">
+                      {teamMembers.map((member) => (
+                        <MobileTeamMemberRow key={member.id} member={member} onUpdate={handleUpdateTeamMember} onDelete={handleDeleteTeamMember} />
+                      ))}
+
+                      {teamMembers.length === 0 && (
+                        <div className="text-center text-xs text-gray-500 py-4">Henüz ekip üyesi eklenmedi.</div>
+                      )}
+                    </div>
+                  </section>
+                </div>
+              ) : (
+                <MobileTaskView
+                  tasks={tasks}
+                  projects={projects}
+                  selectedProject={selectedProject}
+                  onSelectProject={setSelectedProject}
+                  onToggleComplete={handleToggleComplete}
+                  onEditTask={setEditingTask}
+                  onSelectTask={setInspectingTask}
+                  onOpenNewTask={() => setIsNewTaskOpen(true)}
+                  onOpenFiltersModal={() => setIsSettingsOpen(true)}
+                />
+              )}
               <BottomNav
                 activeTab={mobileTab}
                 setActiveTab={setMobileTab}
@@ -694,17 +869,64 @@ export default function App() {
             <main className="flex-1 px-4 lg:px-8 py-6 flex flex-col gap-6 max-w-[1600px] mx-auto w-full">
               {/* Mobile screen alternative when screen is narrow and previewMode is 'auto' */}
               <div className="block lg:hidden">
-                <MobileTaskView
-                  tasks={tasks}
-                  projects={projects}
-                  selectedProject={selectedProject}
-                  onSelectProject={setSelectedProject}
-                  onToggleComplete={handleToggleComplete}
-                  onEditTask={setEditingTask}
-                  onSelectTask={setInspectingTask}
-                  onOpenNewTask={() => setIsNewTaskOpen(true)}
-                  onOpenFiltersModal={() => setIsSettingsOpen(true)}
-                />
+                {mobileTab === 'ekip' ? (
+                  <div className="w-full max-w-md mx-auto flex flex-col gap-3.5 pb-24">
+                    <section className="bg-white rounded-2xl border border-gray-100 p-4 shadow-xs">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold text-gray-900">Ekip</h3>
+                        <span className="text-[11px] text-gray-500">{teamMembers.length} üye</span>
+                      </div>
+
+                      <form onSubmit={handleMobileAddTeamMember} className="flex flex-col gap-2.5">
+                        <input
+                          type="text"
+                          value={mobileMemberName}
+                          onChange={(e) => setMobileMemberName(e.target.value)}
+                          placeholder="Yeni ekip arkadaşı adı"
+                          className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500"
+                        />
+                        <input
+                          type="text"
+                          value={mobileMemberRole}
+                          onChange={(e) => setMobileMemberRole(e.target.value)}
+                          placeholder="Rol (opsiyonel)"
+                          className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!mobileMemberName.trim()}
+                          className="w-full px-3 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 rounded-lg"
+                        >
+                          Ekip Üyesi Ekle
+                        </button>
+                      </form>
+                    </section>
+
+                    <section className="bg-white rounded-2xl border border-gray-100 p-3 shadow-xs">
+                      <div className="space-y-2.5">
+                        {teamMembers.map((member) => (
+                          <MobileTeamMemberRow key={member.id} member={member} onUpdate={handleUpdateTeamMember} onDelete={handleDeleteTeamMember} />
+                        ))}
+
+                        {teamMembers.length === 0 && (
+                          <div className="text-center text-xs text-gray-500 py-4">Henüz ekip üyesi eklenmedi.</div>
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                ) : (
+                  <MobileTaskView
+                    tasks={tasks}
+                    projects={projects}
+                    selectedProject={selectedProject}
+                    onSelectProject={setSelectedProject}
+                    onToggleComplete={handleToggleComplete}
+                    onEditTask={setEditingTask}
+                    onSelectTask={setInspectingTask}
+                    onOpenNewTask={() => setIsNewTaskOpen(true)}
+                    onOpenFiltersModal={() => setIsSettingsOpen(true)}
+                  />
+                )}
                 <BottomNav
                   activeTab={mobileTab}
                   setActiveTab={setMobileTab}
@@ -865,6 +1087,8 @@ export default function App() {
         onDeleteProject={(proj) => setProjectToDelete(proj)}
         onOpenNewProject={() => setIsNewProjectOpen(true)}
         onAddTeamMember={handleAddTeamMember}
+        onUpdateTeamMember={handleUpdateTeamMember}
+        onDeleteTeamMember={handleDeleteTeamMember}
       />
 
       <ReportsModal

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Building2, Users, Folder, Trash2, Plus, Check } from 'lucide-react';
+import { X, Building2, Users, Folder, Trash2, Plus, Check, Pencil } from 'lucide-react';
 import { Assignee, Project } from '../types';
 
 interface WorkspaceSettingsModalProps {
@@ -12,6 +12,8 @@ interface WorkspaceSettingsModalProps {
   onDeleteProject?: (project: Project) => void;
   onOpenNewProject?: () => void;
   onAddTeamMember?: (member: Assignee) => void;
+  onUpdateTeamMember?: (memberId: string, name: string, role: string) => void;
+  onDeleteTeamMember?: (memberId: string) => void;
 }
 
 export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
@@ -23,10 +25,15 @@ export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
   teamMembers = [],
   onDeleteProject,
   onOpenNewProject,
-  onAddTeamMember
+  onAddTeamMember,
+  onUpdateTeamMember,
+  onDeleteTeamMember
 }) => {
   const [memberName, setMemberName] = useState('');
   const [memberRole, setMemberRole] = useState('');
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editingMemberName, setEditingMemberName] = useState('');
+  const [editingMemberRole, setEditingMemberRole] = useState('');
 
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,20 +186,38 @@ export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
           <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
             {teamMembers.map((user) => (
               <div key={user.id} className="flex items-center justify-between p-3 bg-white hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={user.avatarUrl}
-                    alt={user.name}
-                    className="w-8 h-8 rounded-full object-cover border border-gray-200"
-                  />
-                  <div>
-                    <div className="text-xs font-semibold text-gray-900">{user.name}</div>
-                    <div className="text-[11px] text-gray-500">{user.role}</div>
-                  </div>
-                </div>
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
-                  Aktif
-                </span>
+                {editingMemberId === user.id ? (
+                  <form
+                    className="flex flex-1 items-center gap-2"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      onUpdateTeamMember?.(user.id, editingMemberName, editingMemberRole);
+                      setEditingMemberId(null);
+                    }}
+                  >
+                    <input value={editingMemberName} onChange={(event) => setEditingMemberName(event.target.value)} className="min-w-0 flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500" aria-label="Ekip üyesi adı" />
+                    <input value={editingMemberRole} onChange={(event) => setEditingMemberRole(event.target.value)} className="w-24 px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500" aria-label="Ekip üyesi rolü" />
+                    <button type="submit" className="text-xs font-semibold text-indigo-600">Kaydet</button>
+                  </form>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover border border-gray-200" />
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-gray-900 truncate">{user.name}</div>
+                        <div className="text-[11px] text-gray-500 truncate">{user.role}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 ml-2">
+                      <button type="button" onClick={() => { setEditingMemberId(user.id); setEditingMemberName(user.name); setEditingMemberRole(user.role); }} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Ekip üyesini düzenle">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button type="button" onClick={() => onDeleteTeamMember?.(user.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Ekip üyesini kaldır">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
