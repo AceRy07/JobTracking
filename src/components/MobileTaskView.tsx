@@ -15,7 +15,8 @@ import {
   Plus, 
   Search, 
   SlidersHorizontal,
-  X
+  X,
+  BarChart3
 } from 'lucide-react';
 import { Task, TaskStatus, Project, getTaskAssignees } from '../types';
 import { AssigneeAvatarGroup } from './AssigneeAvatarGroup';
@@ -73,34 +74,41 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
   });
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col gap-3.5 pb-24">
+    <div className="w-full max-w-md mx-auto flex flex-col gap-3.5 pb-24 text-[#101828]">
       {/* 1. COMPACT SUMMARY STATS */}
-      <section className="flex items-center justify-between gap-1.5 p-2 bg-[#f1f3ff] rounded-xl shadow-xs">
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 px-1">
+          <BarChart3 className="w-4 h-4 text-indigo-600" />
+          <h1 className="text-sm font-bold tracking-tight">Genel Görev Durumu</h1>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
         <button
           onClick={() => setFilterChip('all')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white shadow-xs flex-1 justify-center transition-all hover:bg-gray-50"
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[80px] rounded-xl bg-white border border-slate-200 shadow-sm transition-all hover:border-indigo-200"
         >
-          <span className="text-xs text-gray-500 font-medium">Toplam</span>
-          <span className="text-sm text-gray-900 font-bold">{total}</span>
+          <span className="text-[11px] text-gray-500 font-medium">Toplam</span>
+          <span className="text-xl text-gray-900 font-bold leading-none">{total}</span>
+          <span className="text-[10px] text-gray-400">Tüm Görev</span>
         </button>
 
         <button
           onClick={() => setFilterChip('Aktif')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white shadow-xs flex-1 justify-center transition-all hover:bg-gray-50"
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[80px] rounded-xl bg-amber-50/60 border border-amber-300 shadow-sm transition-all hover:border-amber-400"
         >
-          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-          <span className="text-xs text-amber-700 font-medium">Aktif</span>
-          <span className="text-sm text-amber-700 font-bold">{activeCount}</span>
+          <span className="text-[11px] text-amber-800 font-medium">Devam Eden</span>
+          <span className="text-xl text-amber-800 font-bold leading-none">{activeCount}</span>
+          <span className="text-[10px] text-amber-700/70">Yapılacak</span>
         </button>
 
         <button
           onClick={() => setFilterChip('Bitti')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white shadow-xs flex-1 justify-center transition-all hover:bg-gray-50"
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[80px] rounded-xl bg-emerald-50/60 border border-emerald-300 shadow-sm transition-all hover:border-emerald-400"
         >
-          <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-          <span className="text-xs text-emerald-700 font-medium">Bitti</span>
-          <span className="text-sm text-emerald-700 font-bold">{completedCount}</span>
+          <span className="text-[11px] text-emerald-800 font-medium">Tamamlanan</span>
+          <span className="text-xl text-emerald-800 font-bold leading-none">{completedCount}</span>
+          <span className="text-[10px] text-emerald-700/70">Bitti</span>
         </button>
+        </div>
       </section>
 
       {/* 2. SEARCH & FILTER CHIPS CAROUSEL */}
@@ -111,8 +119,8 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="İşlerde ara..."
-            className="w-full h-10 pl-9 pr-9 bg-white text-gray-800 text-xs sm:text-sm rounded-xl shadow-xs border border-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            placeholder="Görev adı veya sorumlu ara..."
+            className="w-full h-10 pl-9 pr-9 bg-white text-gray-800 text-xs sm:text-sm rounded-xl shadow-sm border border-slate-300 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
           />
           {searchQuery ? (
             <button
@@ -226,9 +234,17 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
 
       {/* 3. STACKED TASK CARDS LIST */}
       <main className="flex flex-col gap-3">
+        <div className="flex items-center justify-between px-1 pt-1">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-5 rounded-full bg-indigo-600" />
+            <h2 className="text-sm font-bold">{filterChip === 'Bitti' ? 'Tamamlanan Görevler' : 'Devam Eden Görevler'}</h2>
+          </div>
+          <span className="text-[11px] text-gray-500">{filteredTasks.length} Görev</span>
+        </div>
         {filteredTasks.map((task) => {
           const isDone = task.completed || task.status === 'Bitti';
           const isCritical = task.status === 'Kritik';
+          const primaryAssignee = getTaskAssignees(task)[0];
 
           // Left border accent color
           const borderAccent = isDone
@@ -242,182 +258,82 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
           return (
             <article
               key={task.id}
-              className={`relative flex flex-col p-4 bg-white rounded-xl shadow-xs border border-gray-100 hover:shadow-md transition-all overflow-hidden ${
-                isDone ? 'opacity-85' : ''
+              className={`relative flex flex-col p-3.5 bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all overflow-hidden ${
+                isDone ? 'bg-emerald-50/25 opacity-90' : isCritical ? 'bg-red-50/25' : 'bg-white'
               }`}
             >
               {/* Colored left bar indicator */}
               <div className={`absolute left-0 top-0 bottom-0 w-1 ${borderAccent}`} />
 
-              {/* Top Row */}
-              <div className="flex items-start justify-between gap-2 pl-1">
-                <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                  {/* Status Toggle Box */}
-                  <button
-                    onClick={() => onToggleComplete(task.id)}
-                    className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-all ${
-                      isDone
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-gray-100 text-transparent hover:text-gray-400 border border-gray-200'
-                    }`}
-                    title={isDone ? 'Geri al' : 'Tamamlandı yap'}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                  </button>
-
-                  <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                        {task.code}
-                      </span>
-                      {isCritical ? (
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                      ) : (
-                        <span className="text-[11px] text-gray-400">• {task.project}</span>
-                      )}
-                    </div>
-
-                    <h2
-                      onClick={() => onSelectTask(task)}
-                      className={`text-sm font-semibold cursor-pointer hover:text-indigo-600 transition-colors leading-snug ${
-                        isDone ? 'line-through text-gray-400' : 'text-gray-900'
-                      }`}
-                    >
-                      {task.title}
-                    </h2>
+              <div className="flex items-start gap-2 pl-2">
+                <button
+                  onClick={() => onToggleComplete(task.id)}
+                  className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${
+                    isDone ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-transparent hover:text-gray-400'
+                  }`}
+                  title={isDone ? 'Geri al' : 'Tamamlandı yap'}
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2 py-1 rounded-md bg-red-50 text-red-700 text-[10px] font-bold tracking-wide">{task.code}</span>
+                    {isDone ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-700 text-white text-[10px] font-bold"><Check className="w-3 h-3" /> Başarıyla Tamamlandı</span>
+                    ) : isCritical ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-rose-700 text-white text-[10px] font-bold"><AlertTriangle className="w-3 h-3" /> Acil &amp; Kritik</span>
+                    ) : (
+                      <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">Devam Ediyor</span>
+                    )}
                   </div>
-                </div>
-
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {isDone ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold">
-                      <Check className="w-3 h-3 text-emerald-600" />
-                      Bitti
-                    </span>
-                  ) : isCritical ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[11px] font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
-                      Kritik
-                    </span>
-                  ) : task.status === 'Beklemede' ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold">
-                      Beklemede
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                      Aktif
-                    </span>
-                  )}
-
-                  <button
-                    onClick={() => onEditTask(task)}
-                    className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
+                  <h2 onClick={() => onSelectTask(task)} className={`mt-1 text-base font-bold leading-snug cursor-pointer hover:text-indigo-600 ${isDone ? 'line-through text-gray-500' : 'text-slate-950'}`}>
+                    {task.title}
+                  </h2>
                 </div>
               </div>
 
-              {/* Task Details */}
-              <div 
-                onClick={() => onSelectTask(task)}
-                className="pl-8 mt-1.5 cursor-pointer"
-              >
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  <span className="font-semibold text-gray-800">Yapılacak İş: </span>
-                  {task.details}
+              <div onClick={() => onSelectTask(task)} className="mt-3 ml-2 rounded-xl border border-slate-200 bg-slate-50 p-3 cursor-pointer">
+                <p className="text-xs text-slate-800 leading-relaxed">
+                  <span className="font-bold block mb-1">Açıklama &amp; Yapılacak İş:</span>
+                  {task.details || 'Bu görev için açıklama eklenmedi.'}
                 </p>
               </div>
 
-              {/* Metadata Box */}
-              <div className="mt-2.5 pl-8 flex flex-col gap-1.5 pt-1.5 bg-[#f1f3ff]/60 rounded-lg p-2.5">
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                    <span>Başlangıç:</span>
-                    <span className="text-gray-800 font-medium">{task.startDate}</span>
+              <div className={`mt-3 ml-2 rounded-xl border p-3 ${isDone ? 'bg-emerald-50 border-emerald-100' : isCritical ? 'bg-rose-50 border-rose-100' : 'bg-amber-50/60 border-amber-100'}`}>
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-slate-800">
+                    <Calendar className={`w-4 h-4 ${isCritical ? 'text-rose-600' : isDone ? 'text-emerald-600' : 'text-amber-600'}`} />
+                    <span>Son Teslim Tarihi:</span>
                   </div>
-
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-800 font-medium">{task.dueDate}</span>
-                    {task.dueStatusNote && (
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                          isDone
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : isCritical
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        ({task.dueStatusNote})
-                      </span>
-                    )}
+                  <div className="text-right">
+                    <span className="block font-bold text-slate-900">{task.dueDate || 'Tarih belirtilmedi'}</span>
+                    {task.dueStatusNote && <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${isCritical ? 'bg-rose-600 text-white' : isDone ? 'bg-emerald-600 text-white' : 'bg-amber-300 text-amber-900'}`}>{task.dueStatusNote}</span>}
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-gray-500">Sorumlular:</span>
-                  </div>
-                  <AssigneeAvatarGroup assignees={getTaskAssignees(task)} size="sm" />
                 </div>
               </div>
 
-              {/* Quick Action Footer */}
-              <div className="mt-2.5 pt-2.5 border-t border-gray-100 flex items-center justify-between pl-8">
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  {task.commentsCount ? (
-                    <div className="flex items-center gap-1">
-                      <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
-                      <span>{task.commentsCount} yorum</span>
-                    </div>
-                  ) : null}
-
-                  {task.filesCount ? (
-                    <div className="flex items-center gap-1">
-                      <Paperclip className="w-3.5 h-3.5 text-gray-400" />
-                      <span>{task.filesCount} dosya</span>
-                    </div>
-                  ) : null}
-
-                  {task.figmaLink ? (
-                    <div className="flex items-center gap-1 text-indigo-600">
-                      <LinkIcon className="w-3.5 h-3.5" />
-                      <span>{task.figmaLink}</span>
-                    </div>
-                  ) : null}
-
-                  {task.category ? (
-                    <div className="flex items-center gap-1 text-gray-500">
-                      <Code2 className="w-3.5 h-3.5" />
-                      <span>{task.category}</span>
-                    </div>
-                  ) : null}
+              <div className="mt-3 ml-2 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center gap-2 text-xs text-slate-700">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full border border-slate-400">◉</span>
+                  <span>Görev<br />Sorumlusu:</span>
                 </div>
+                {primaryAssignee ? (
+                  <div className="flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2.5 py-1.5">
+                    <img src={primaryAssignee.avatarUrl} alt={primaryAssignee.name} className="w-6 h-6 rounded-full object-cover" />
+                    <span className="text-xs font-semibold text-slate-900">{primaryAssignee.name}</span>
+                  </div>
+                ) : <span className="text-xs text-slate-500">Atanmadı</span>}
+              </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => onEditTask(task)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
-                  >
-                    <Edit3 className="w-3 h-3" />
-                    <span>Düzenle</span>
-                  </button>
-
-                  <button
-                    onClick={() => onToggleComplete(task.id)}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                      isDone
-                        ? 'text-gray-600 bg-gray-100 hover:bg-gray-200'
-                        : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>{isDone ? 'Geri al' : 'Tamamla'}</span>
-                  </button>
-                </div>
+              <div className="mt-3 ml-2 flex flex-col gap-2 border-t border-slate-200 pt-3">
+                <button onClick={() => onToggleComplete(task.id)} className={`w-full h-11 inline-flex items-center justify-center gap-2 rounded-lg border text-sm font-bold transition-colors ${isDone ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-emerald-100 border-emerald-400 text-emerald-900 hover:bg-emerald-200'}`}>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{isDone ? 'Geri Al' : 'Görevi Tamamla'}</span>
+                </button>
+                <button onClick={() => onEditTask(task)} className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors">
+                  <Edit3 className="w-4 h-4" />
+                  <span>Düzenle</span>
+                </button>
               </div>
             </article>
           );
@@ -444,7 +360,7 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
       <aside className="fixed right-5 bottom-20 z-40">
         <button
           onClick={onOpenNewTask}
-          className="inline-flex items-center gap-2 h-12 px-5 bg-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl hover:bg-indigo-700 active:scale-95 transition-all font-semibold text-sm"
+          className="inline-flex items-center gap-2 h-10 px-4 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-300/40 hover:shadow-xl hover:bg-indigo-700 active:scale-95 transition-all font-semibold text-xs border-2 border-white"
         >
           <Plus className="w-5 h-5" />
           <span>Yeni İş Ekle</span>

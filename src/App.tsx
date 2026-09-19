@@ -765,7 +765,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f9f9ff] text-[#141b2b] flex flex-col font-['Inter',sans-serif]">
+    <div className="min-h-screen bg-[#f7f8fc] text-[#141b2b] flex flex-col font-['Inter',sans-serif]">
       {/* Top Header */}
       <Header
         onOpenNewTask={() => setIsNewTaskOpen(true)}
@@ -782,7 +782,7 @@ export default function App() {
         {/* If Mobile Preview Mode is explicitly active, render the dedicated mobile frame */}
         {previewMode === 'mobile' ? (
           <div className="w-full flex justify-center py-6 px-4 bg-[#eceef7]">
-            <div className="w-full max-w-md bg-[#f9f9ff] rounded-3xl shadow-2xl overflow-hidden border border-gray-300 relative min-h-[750px] p-4">
+            <div className="w-full max-w-md bg-[#f7f8fc] rounded-3xl shadow-2xl overflow-hidden border border-slate-200 relative min-h-[750px] p-3">
               {mobileTab === 'ekip' ? (
                 <div className="w-full max-w-md mx-auto flex flex-col gap-3.5 pb-24">
                   <section className="bg-white rounded-2xl border border-gray-100 p-4 shadow-xs">
