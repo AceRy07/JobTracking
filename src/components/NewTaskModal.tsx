@@ -55,9 +55,16 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [details, setDetails] = useState('');
   const [code, setCode] = useState(`TASK-${Math.floor(100 + Math.random() * 900)}`);
   const [project, setProject] = useState(projects[0]?.name || 'Mobil Uygulama v2');
+  const fallbackAssignee = assignees[0] || {
+    id: 'unassigned',
+    name: 'Atanmış Kişi',
+    role: 'Ekip Üyesi',
+    initials: 'AK',
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
+  };
   
   // Multi-assignee state
-  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([assignees[0]?.id || 'arda']);
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>(assignees[0] ? [assignees[0].id] : []);
 
   // Sync project & reset form when modal opens
   useEffect(() => {
@@ -71,6 +78,8 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
 
       if (assignees.length > 0) {
         setSelectedAssigneeIds([assignees[0].id]);
+      } else {
+        setSelectedAssigneeIds([]);
       }
       setCode(`TASK-${Math.floor(100 + Math.random() * 900)}`);
     }
@@ -118,7 +127,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     if (!title.trim()) return;
 
     const selectedAssigneesList = assignees.filter(a => selectedAssigneeIds.includes(a.id));
-    const finalAssignees = selectedAssigneesList.length > 0 ? selectedAssigneesList : [assignees[0]];
+    const finalAssignees = selectedAssigneesList.length > 0 ? selectedAssigneesList : (assignees[0] ? [assignees[0]] : [fallbackAssignee]);
 
     const formattedStartDate = formatDateTimeDisplay(startDateTime, false);
     const formattedDueDate = formatDateTimeDisplay(dueDateTime, false);
@@ -267,7 +276,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                 <span className="text-gray-300">•</span>
                 <button
                   type="button"
-                  onClick={() => setSelectedAssigneeIds([assignees[0]?.id || 'selin'])}
+                  onClick={() => setSelectedAssigneeIds([assignees[0]?.id || fallbackAssignee.id])}
                   className="text-[11px] font-medium text-gray-500 hover:text-gray-700"
                 >
                   Sıfırla

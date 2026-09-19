@@ -1,9 +1,26 @@
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured, TaskRow, TaskInsert, TaskUpdate } from './supabase';
-import { Task, getTaskAssignees } from '../types';
-import { ASSIGNEES } from '../data/initialData';
+import { Assignee, Task, getTaskAssignees } from '../types';
 
 export type { TaskRow, TaskInsert, TaskUpdate };
+
+function createFallbackAssignee(id?: string): Assignee {
+  const safeId = id && id.trim() ? id : 'unassigned';
+  const initials = safeId
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() || '')
+    .join('') || 'U';
+
+  return {
+    id: safeId,
+    name: safeId === 'unassigned' ? 'Atanmış Kişi' : safeId,
+    role: 'Ekip Üyesi',
+    initials,
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
+  };
+}
 
 /**
  * Tüm görevleri veritabanından getirir (en son oluşturulana göre azalan sırada).
@@ -74,11 +91,8 @@ export async function deleteTask(id: string): Promise<void> {
  * Supabase görev satırını UI Task nesnesine dönüştürür.
  */
 export function taskRowToTask(row: TaskRow): Task {
-  const assignees = (row.assignee_ids || [])
-    .map((id) => ASSIGNEES.find((a) => a.id === id))
-    .filter((a): a is (typeof ASSIGNEES)[number] => Boolean(a));
-
-  const resolvedAssignees = assignees.length > 0 ? assignees : [ASSIGNEES[0]];
+  const assignees = (row.assignee_ids || []).map((id) => createFallbackAssignee(id));
+  const resolvedAssignees = assignees.length > 0 ? assignees : [createFallbackAssignee('unassigned')];
 
   return {
     id: row.id,

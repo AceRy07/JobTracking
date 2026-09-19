@@ -7,17 +7,18 @@ import {
   TrendingUp,
   CheckCircle2
 } from 'lucide-react';
-import { Task, getTaskAssignees } from '../types';
-import { ASSIGNEES } from '../data/initialData';
+import { Assignee, Task, getTaskAssignees } from '../types';
 
 interface ProductivityWidgetsProps {
   tasks: Task[];
+  teamMembers?: Assignee[];
   onOpenShortcuts: () => void;
   onOpenResourcePlan: () => void;
 }
 
 export const ProductivityWidgets: React.FC<ProductivityWidgetsProps> = ({
   tasks,
+  teamMembers = [],
   onOpenShortcuts,
   onOpenResourcePlan
 }) => {
@@ -29,7 +30,7 @@ export const ProductivityWidgets: React.FC<ProductivityWidgetsProps> = ({
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   // Ekip üyelerine göre aktif iş dağılımı
-  const memberLoads = ASSIGNEES.map(member => {
+  const memberLoads = (teamMembers.length > 0 ? teamMembers : []).map(member => {
     const memberActiveTasks = tasks.filter(t => {
       const taskAssignees = getTaskAssignees(t);
       const isAssigned = taskAssignees.some(a => a.name === member.name || a.id === member.id);

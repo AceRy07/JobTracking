@@ -6,10 +6,19 @@ import {
   ApplicationUpdate, 
   ApplicationStatus 
 } from './supabase';
-import { Task, TaskStatus } from '../types';
-import { ASSIGNEES } from '../data/initialData';
+import { Assignee, Task, TaskStatus } from '../types';
 
 export type { ApplicationRow, ApplicationInsert, ApplicationUpdate, ApplicationStatus };
+
+function createFallbackAssignee(): Assignee {
+  return {
+    id: 'unassigned',
+    name: 'Atanmış Kişi',
+    role: 'Ekip Üyesi',
+    initials: 'AK',
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
+  };
+}
 
 /**
  * Tüm başvuruları veritabanından getirir (en son başvuru tarihine göre azalan sırada).
@@ -152,6 +161,8 @@ export function applicationToTask(app: ApplicationRow): Task {
     withdrawn: 'Geri Çekildi'
   };
 
+  const fallbackAssignee = createFallbackAssignee();
+
   return {
     id: app.id,
     code: `APP-${app.id.slice(0, 4).toUpperCase()}`,
@@ -162,8 +173,8 @@ export function applicationToTask(app: ApplicationRow): Task {
     dueDate: app.applied_date,
     dueStatusNote: statusLabels[app.status] || 'Başvuruldu',
     status: mapAppStatusToTaskStatus(app.status),
-    assignees: [ASSIGNEES[0]],
-    assignee: ASSIGNEES[0],
+    assignees: [fallbackAssignee],
+    assignee: fallbackAssignee,
     priority: app.status === 'interview' ? 'Kritik' : app.status === 'offer' ? 'Yüksek' : 'Orta',
     completed: isCompleted,
     createdAt: app.created_at || new Date().toISOString(),

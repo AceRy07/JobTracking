@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, Building2, Users, Folder, Trash2, Plus, Check } from 'lucide-react';
-import { ASSIGNEES } from '../data/initialData';
-import { Project } from '../types';
+import { Assignee, Project } from '../types';
 
 interface WorkspaceSettingsModalProps {
   isOpen: boolean;
@@ -9,8 +8,10 @@ interface WorkspaceSettingsModalProps {
   workspaceName: string;
   onUpdateWorkspaceName: (name: string) => void;
   projects?: Project[];
+  teamMembers?: Assignee[];
   onDeleteProject?: (project: Project) => void;
   onOpenNewProject?: () => void;
+  onAddTeamMember?: (member: Assignee) => void;
 }
 
 export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
@@ -19,9 +20,40 @@ export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
   workspaceName,
   onUpdateWorkspaceName,
   projects = [],
+  teamMembers = [],
   onDeleteProject,
-  onOpenNewProject
+  onOpenNewProject,
+  onAddTeamMember
 }) => {
+  const [memberName, setMemberName] = useState('');
+  const [memberRole, setMemberRole] = useState('');
+
+  const handleAddMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = memberName.trim();
+    if (!trimmedName || !onAddTeamMember) return;
+
+    const initials = trimmedName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0]?.toUpperCase() || '')
+      .join('') || 'U';
+
+    onAddTeamMember({
+      id: `member-${Date.now()}`,
+      name: trimmedName,
+      role: memberRole.trim() || 'Üye',
+      initials,
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      badgeBg: 'bg-indigo-100',
+      badgeColor: 'text-indigo-800'
+    });
+
+    setMemberName('');
+    setMemberRole('');
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -116,12 +148,36 @@ export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
               <Users className="w-4 h-4 text-indigo-600" />
-              <span>Ekip Üyeleri ({ASSIGNEES.length})</span>
+              <span>Ekip Üyeleri ({teamMembers.length})</span>
             </h4>
           </div>
 
+          <form onSubmit={handleAddMember} className="mb-3 flex gap-2">
+            <input
+              type="text"
+              value={memberName}
+              onChange={(e) => setMemberName(e.target.value)}
+              placeholder="Yeni ekip üyesi adı"
+              className="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500"
+            />
+            <input
+              type="text"
+              value={memberRole}
+              onChange={(e) => setMemberRole(e.target.value)}
+              placeholder="Rol"
+              className="w-28 px-3 py-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500"
+            />
+            <button
+              type="submit"
+              disabled={!memberName.trim() || !onAddTeamMember}
+              className="px-3 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 rounded-lg"
+            >
+              Ekle
+            </button>
+          </form>
+
           <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
-            {ASSIGNEES.map((user) => (
+            {teamMembers.map((user) => (
               <div key={user.id} className="flex items-center justify-between p-3 bg-white hover:bg-gray-50">
                 <div className="flex items-center gap-3">
                   <img

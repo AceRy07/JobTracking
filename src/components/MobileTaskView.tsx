@@ -43,7 +43,7 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
   selectedProject = null,
   onSelectProject
 }) => {
-  const [filterChip, setFilterChip] = useState<'all' | 'Aktif' | 'Bitti' | 'mine' | 'arda'>('all');
+  const [filterChip, setFilterChip] = useState<'all' | 'Aktif' | 'Bitti' | 'mine'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Projeye göre görevler
@@ -68,7 +68,7 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
 
     if (filterChip === 'Aktif') return t.status === 'Aktif' || t.status === 'Kritik';
     if (filterChip === 'Bitti') return t.status === 'Bitti' || t.completed;
-    if (filterChip === 'mine' || filterChip === 'arda') return taskAssignees.some(a => a.name.includes('Arda') || a.id === 'arda');
+    if (filterChip === 'mine') return taskAssignees.length > 0;
     return true;
   });
 
@@ -219,23 +219,7 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
                 : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-100'
             }`}
           >
-            Bana Atananlar
-          </button>
-
-          <button
-            onClick={() => setFilterChip('arda')}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all shadow-xs flex items-center gap-1 ${
-              filterChip === 'arda'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-100'
-            }`}
-          >
-            <img
-              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
-              alt="Arda"
-              className="w-3.5 h-3.5 rounded-full object-cover"
-            />
-            <span>Arda A.</span>
+            <span>Bana Atananlar</span>
           </button>
         </div>
       </section>

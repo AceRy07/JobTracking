@@ -138,6 +138,39 @@ export interface Database {
         };
         Relationships: [];
       };
+      team_members: {
+        Row: {
+          id: string;
+          name: string;
+          role: string | null;
+          initials: string | null;
+          avatar_url: string | null;
+          badge_bg: string | null;
+          badge_color: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          role?: string | null;
+          initials?: string | null;
+          avatar_url?: string | null;
+          badge_bg?: string | null;
+          badge_color?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          role?: string | null;
+          initials?: string | null;
+          avatar_url?: string | null;
+          badge_bg?: string | null;
+          badge_color?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -165,6 +198,10 @@ export type TaskUpdate = Database['public']['Tables']['tasks']['Update'];
 export type ProjectRow = Database['public']['Tables']['projects']['Row'];
 export type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 export type ProjectUpdate = Database['public']['Tables']['projects']['Update'];
+
+export type TeamMemberRow = Database['public']['Tables']['team_members']['Row'];
+export type TeamMemberInsert = Database['public']['Tables']['team_members']['Insert'];
+export type TeamMemberUpdate = Database['public']['Tables']['team_members']['Update'];
 
 const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string) || '';
 const supabasePublishableKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string) || '';

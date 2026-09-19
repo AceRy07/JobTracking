@@ -7,8 +7,9 @@ import {
   Check,
   Database
 } from 'lucide-react';
-import { APP_LOGO_URL } from '../data/initialData';
 import { isSupabaseConfigured } from '../lib/supabase';
+
+const APP_LOGO_URL = 'https://lh3.googleusercontent.com/aida/AEtjO1Uy0oIYnlEl2UoZ4dtHDNcL2u2ieEzZ6jxw9RiOXqFRWTqNdHbvtOhe4mlnTyh3EqYKq6n-WiaR22vBVoLxiQHh1PSTOQEL3tkfVtW607cquvikHPfsnALTJp192U6CTptvloPmi196-HSd4QlADs7oss6GWqUe9soEX0SN5aqnbQJaNBZt_jKWaRAUOGwBGQWi9HtwR4Heo8mCRNjdNLAIjhB8C8UmY5DzMizXXN2e2eHHYJL-pXl7UeQA';
 
 interface HeaderProps {
   onOpenNewTask: () => void;

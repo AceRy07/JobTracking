@@ -57,8 +57,7 @@ import {
   DeleteProjectModal 
 } from './components/DeleteProjectModal';
 
-import { ActiveView, Project, Task, TaskStatus, getTaskAssignees } from './types';
-import { INITIAL_TASKS, PROJECTS, ASSIGNEES } from './data/initialData';
+import { ActiveView, Assignee, Project, Task, TaskStatus, getTaskAssignees } from './types';
 import { CheckCircle, AlertCircle, Info } from 'lucide-react';
 import {
   getTasks,
@@ -77,61 +76,63 @@ import {
   projectToProjectInsert,
   subscribeToProjects
 } from './lib/projects';
+import {
+  getTeamMembers,
+  addTeamMember,
+  assigneeToTeamMemberInsert,
+  teamMemberRowToAssignee,
+  subscribeToTeamMembers
+} from './lib/teamMembers';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 // Eski isimleri yeni ekip listesine pürüzsüz eşleme yardımcısı
-function migrateAssignees(rawTasks: Task[]): Task[] {
-  const nameMap: { [key: string]: typeof ASSIGNEES[0] } = {
-    'selin yılmaz': ASSIGNEES[0],
-    'selin yilmaz': ASSIGNEES[0],
-    'caner tekin': ASSIGNEES[1],
-    'ayşe kaya': ASSIGNEES[2],
-    'ayse kaya': ASSIGNEES[2],
-    'burak demir': ASSIGNEES[3],
-    'mert can demir': ASSIGNEES[4]
-  };
-
+function migrateAssignees(rawTasks: Task[], fallbackAssignee: Assignee): Task[] {
   return rawTasks.map(t => {
-    let updatedAssignees = t.assignees ? t.assignees.map(a => {
-      const match = nameMap[a.name.toLowerCase()];
-      return match || a;
-    }) : [];
-
-    let updatedAssignee = t.assignee;
-    if (updatedAssignee) {
-      const match = nameMap[updatedAssignee.name.toLowerCase()];
-      if (match) updatedAssignee = match;
-    }
-
-    if (updatedAssignees.length === 0 && updatedAssignee) {
-      updatedAssignees = [updatedAssignee];
-    } else if (updatedAssignees.length > 0 && !updatedAssignee) {
-      updatedAssignee = updatedAssignees[0];
-    }
+    const updatedAssignees = t.assignees && t.assignees.length > 0 ? t.assignees : [t.assignee || fallbackAssignee];
+    const updatedAssignee = t.assignee || updatedAssignees[0] || fallbackAssignee;
 
     return {
       ...t,
-      assignee: updatedAssignee || ASSIGNEES[0],
-      assignees: updatedAssignees.length > 0 ? updatedAssignees : [ASSIGNEES[0]]
+      assignee: updatedAssignee,
+      assignees: updatedAssignees.length > 0 ? updatedAssignees : [fallbackAssignee]
     };
   });
 }
 
 export default function App() {
   // Persistence state
+  const [teamMembers, setTeamMembers] = useState<Assignee[]>(() => {
+    try {
+      const saved = localStorage.getItem('is_takip_team_members');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // fallback
+    }
+    return [];
+  });
+
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
       const saved = localStorage.getItem('is_takip_tasks');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return migrateAssignees(parsed);
+          return migrateAssignees(parsed, teamMembers[0] || {
+            id: 'fallback-user',
+            name: 'Atanmış Kişi',
+            role: 'Üye',
+            initials: 'AK',
+            avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
+          });
         }
       }
     } catch {
       // fallback
     }
-    return INITIAL_TASKS;
+    return [];
   });
 
   const [projects, setProjects] = useState<Project[]>(() => {
@@ -141,7 +142,7 @@ export default function App() {
     } catch {
       // fallback
     }
-    return PROJECTS;
+    return [];
   });
 
   const [workspaceName, setWorkspaceName] = useState('Acme Tech Workspace');
@@ -182,6 +183,14 @@ export default function App() {
   // Sync to localStorage
   useEffect(() => {
     try {
+      localStorage.setItem('is_takip_team_members', JSON.stringify(teamMembers));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [teamMembers]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem('is_takip_tasks', JSON.stringify(tasks));
     } catch (e) {
       console.error(e);
@@ -204,13 +213,23 @@ export default function App() {
 
     async function bootstrapSync() {
       try {
-        const [remoteProjects, remoteTasks] = await Promise.all([getProjects(), getTasks()]);
+        const [remoteProjects, remoteTasks, remoteTeamMembers] = await Promise.all([
+          getProjects(),
+          getTasks(),
+          getTeamMembers()
+        ]);
         if (!isMounted) return;
+
+        if (remoteTeamMembers.length > 0) {
+          setTeamMembers(remoteTeamMembers.map(teamMemberRowToAssignee));
+        }
+
+        const hasRemoteData = remoteProjects.length > 0 || remoteTasks.length > 0 || remoteTeamMembers.length > 0;
+        const hasLocalData = projects.length > 0 || tasks.length > 0 || teamMembers.length > 0;
 
         if (remoteProjects.length > 0) {
           setProjects(remoteProjects.map(projectRowToProject));
         } else if (projects.length > 0) {
-          // İlk kurulum: mevcut yerel projeleri Supabase'e taşı
           const created = await Promise.all(projects.map(p => addProject(projectToProjectInsert(p))));
           if (isMounted) setProjects(created.map(projectRowToProject));
         }
@@ -218,12 +237,13 @@ export default function App() {
         if (remoteTasks.length > 0) {
           setTasks(remoteTasks.map(taskRowToTask));
         } else if (tasks.length > 0) {
-          // İlk kurulum: mevcut yerel görevleri Supabase'e taşı
           const created = await Promise.all(tasks.map(t => addTask(taskToTaskInsert(t))));
           if (isMounted) setTasks(created.map(taskRowToTask));
         }
 
-        showToast('Supabase ile senkronize edildi.');
+        if (hasRemoteData || hasLocalData) {
+          showToast('Supabase ile senkronize edildi.');
+        }
       } catch (err) {
         console.warn('Supabase başlangıç verisi alınamadı:', err);
       }
@@ -243,10 +263,17 @@ export default function App() {
       onDelete: (id) => setProjects(prev => prev.filter(p => p.id !== id))
     });
 
+    const teamMembersChannel = subscribeToTeamMembers({
+      onInsert: (row) => setTeamMembers(prev => (prev.some(m => m.id === row.id) ? prev : [...prev, teamMemberRowToAssignee(row)])),
+      onUpdate: (row) => setTeamMembers(prev => prev.map(m => (m.id === row.id ? teamMemberRowToAssignee(row) : m))),
+      onDelete: (id) => setTeamMembers(prev => prev.filter(m => m.id !== id))
+    });
+
     return () => {
       isMounted = false;
       if (tasksChannel) supabase.removeChannel(tasksChannel);
       if (projectsChannel) supabase.removeChannel(projectsChannel);
+      if (teamMembersChannel) supabase.removeChannel(teamMembersChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -402,6 +429,34 @@ export default function App() {
         });
       } catch (e) {
         console.error('Supabase durum güncelleme hatası:', e);
+      }
+    }
+  };
+
+  const handleAddTeamMember = async (member: Assignee) => {
+    const uniqueId = member.id || `member-${Date.now()}`;
+    const newMember: Assignee = {
+      ...member,
+      id: uniqueId,
+      initials: member.initials || member.name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part[0]?.toUpperCase() || '')
+        .join('') || 'U',
+      role: member.role || 'Üye',
+      avatarUrl: member.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'
+    };
+
+    setTeamMembers(prev => [...prev, newMember]);
+    showToast(`"${newMember.name}" ekip listesine eklendi.`);
+
+    if (isSupabaseConfigured) {
+      try {
+        const createdRow = await addTeamMember(assigneeToTeamMemberInsert(newMember));
+        setTeamMembers(prev => prev.map(item => item.id === uniqueId ? teamMemberRowToAssignee(createdRow) : item));
+      } catch (err) {
+        console.error('Supabase ekip üyesi ekleme hatası:', err);
       }
     }
   };
@@ -679,7 +734,7 @@ export default function App() {
                   onDateRangeChange={setDateRangeFilter}
                   activeView={activeView}
                   onViewChange={setActiveView}
-                  assignees={ASSIGNEES}
+                  assignees={teamMembers.length > 0 ? teamMembers : []}
                   onExportCsv={handleExportCsv}
                   isExporting={isExporting}
                 />
@@ -763,7 +818,7 @@ export default function App() {
         onClose={() => setIsNewTaskOpen(false)}
         onSaveTask={handleCreateTask}
         projects={projects}
-        assignees={ASSIGNEES}
+        assignees={teamMembers.length > 0 ? teamMembers : []}
         defaultProject={selectedProject}
         onOpenNewProjectModal={() => setIsNewProjectOpen(true)}
       />
@@ -788,7 +843,7 @@ export default function App() {
         onClose={() => setEditingTask(null)}
         onUpdateTask={handleUpdateTask}
         projects={projects}
-        assignees={ASSIGNEES}
+        assignees={teamMembers.length > 0 ? teamMembers : []}
       />
 
       <TaskDetailModal
@@ -806,8 +861,10 @@ export default function App() {
         workspaceName={workspaceName}
         onUpdateWorkspaceName={setWorkspaceName}
         projects={projects}
+        teamMembers={teamMembers}
         onDeleteProject={(proj) => setProjectToDelete(proj)}
         onOpenNewProject={() => setIsNewProjectOpen(true)}
+        onAddTeamMember={handleAddTeamMember}
       />
 
       <ReportsModal
