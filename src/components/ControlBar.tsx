@@ -26,7 +26,7 @@ interface ControlBarProps {
   activeView: ActiveView;
   onViewChange: (v: ActiveView) => void;
   assignees: Assignee[];
-  onExportCsv: () => void;
+  onExportExcel: () => void;
   isExporting: boolean;
 }
 
@@ -42,7 +42,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
   activeView,
   onViewChange,
   assignees,
-  onExportCsv,
+  onExportExcel,
   isExporting
 }) => {
   const [showDateMenu, setShowDateMenu] = useState(false);
@@ -184,19 +184,19 @@ export const ControlBar: React.FC<ControlBarProps> = ({
 
         {/* Export Button */}
         <button
-          onClick={onExportCsv}
+          onClick={onExportExcel}
           disabled={isExporting}
           className="flex items-center gap-1.5 bg-[#f1f3ff] hover:bg-gray-200 text-gray-800 text-xs sm:text-sm font-medium py-1.5 px-3 rounded-lg shadow-2xs transition-colors"
         >
           {isExporting ? (
             <>
               <Loader2 className="w-4 h-4 text-indigo-600 animate-spin" />
-              <span>İndiriliyor...</span>
+              <span>Excel hazırlanıyor...</span>
             </>
           ) : (
             <>
               <Download className="w-4 h-4 text-gray-500" />
-              <span className="hidden sm:inline">Dışa Aktar</span>
+              <span className="hidden sm:inline">Excel’e Aktar</span>
             </>
           )}
         </button>

@@ -59,6 +59,7 @@ import {
 
 import { ActiveView, Assignee, Project, Task, TaskStatus, getTaskAssignees } from './types';
 import { CheckCircle, AlertCircle, Info, Pencil, Trash2, X } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   getTasks,
   addTask,
@@ -729,35 +730,59 @@ export default function App() {
     setDateRangeFilter('all');
   };
 
-  // CSV Export
-  const handleExportCsv = () => {
+  // Excel Export
+  const handleExportExcel = (exportTasks = filteredTasks) => {
     setIsExporting(true);
     setTimeout(() => {
       try {
-        const headers = ['Görev Kodu', 'Madde Açıklama', 'Yapılacak İş', 'Proje', 'Başlangıç', 'Teslim', 'Sorumlular', 'Durum'];
-        const rows = filteredTasks.map(t => [
-          `"${t.code}"`,
-          `"${t.title.replace(/"/g, '""')}"`,
-          `"${t.details.replace(/"/g, '""')}"`,
-          `"${t.project}"`,
-          `"${t.startDate}"`,
-          `"${t.dueDate}"`,
-          `"${getTaskAssignees(t).map(a => a.name).join('; ')}"`,
-          `"${t.status}"`
-        ]);
+        const exportedAt = new Date();
+        const exportedAtText = exportedAt.toLocaleString('tr-TR');
+        const taskHeaders = ['Görev Kodu', 'Görev', 'Açıklama', 'Proje', 'Başlangıç', 'Teslim', 'Sorumlular', 'Durum', 'Tamamlandı', 'Öncelik'];
+        const taskRows = exportTasks.map(task => ({
+          'Görev Kodu': task.code,
+          'Görev': task.title,
+          'Açıklama': task.details,
+          'Proje': task.project,
+          'Başlangıç': task.startDate,
+          'Teslim': task.dueDate,
+          'Sorumlular': getTaskAssignees(task).map(assignee => assignee.name).join(', '),
+          'Durum': task.status,
+          'Tamamlandı': task.completed || task.status === 'Bitti' ? 'Evet' : 'Hayır',
+          'Öncelik': task.priority || ''
+        }));
+        const projectRows = projects.map(project => ({
+          'Proje': project.name,
+          'Açıklama': project.description || '',
+          'Renk': project.color,
+          'Görev Sayısı': tasks.filter(task => task.project === project.name).length
+        }));
 
-        const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.setAttribute('href', url);
-        link.setAttribute('download', `is_takip_raporu_${new Date().toISOString().slice(0, 10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        showToast('CSV dosyası başarıyla dışa aktarıldı.');
+        const workbook = XLSX.utils.book_new();
+        const addReportSheet = (sheetName: string, rows: Record<string, unknown>[], headers: string[]) => {
+          const sheetRows = [
+            ['Çalışma Alanı', workspaceName],
+            ['Dışa Aktarma Tarihi', exportedAtText],
+            [],
+            headers,
+            ...rows.map(row => headers.map(header => row[header] ?? ''))
+          ];
+          const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
+          sheet['!cols'] = headers.map(header => ({ wch: Math.max(header.length + 2, 16) }));
+          XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
+        };
+
+        addReportSheet('Görevler', taskRows, taskHeaders);
+        addReportSheet('Projeler', projectRows, ['Proje', 'Açıklama', 'Renk', 'Görev Sayısı']);
+        addReportSheet('Aktif', taskRows.filter(row => row['Durum'] === 'Aktif'), taskHeaders);
+        addReportSheet('Beklemede', taskRows.filter(row => row['Durum'] === 'Beklemede'), taskHeaders);
+        addReportSheet('Kritik', taskRows.filter(row => row['Durum'] === 'Kritik'), taskHeaders);
+        addReportSheet('Tamamlanan', taskRows.filter(row => row['Tamamlandı'] === 'Evet'), taskHeaders);
+
+        XLSX.writeFile(workbook, `is_takip_raporu_${exportedAt.toISOString().slice(0, 10)}.xlsx`);
+        showToast('Excel dosyası başarıyla dışa aktarıldı.');
       } catch (err) {
-        console.error(err);
+        console.error('Excel dışa aktarma hatası:', err);
+        showToast('Excel dosyası oluşturulamadı.');
       } finally {
         setIsExporting(false);
       }
@@ -839,6 +864,8 @@ export default function App() {
                   onSelectTask={setInspectingTask}
                   onOpenNewTask={() => setIsNewTaskOpen(true)}
                   onOpenFiltersModal={() => setIsSettingsOpen(true)}
+                  onExportExcel={handleExportExcel}
+                  isExporting={isExporting}
                 />
               )}
               <BottomNav
@@ -925,6 +952,8 @@ export default function App() {
                     onSelectTask={setInspectingTask}
                     onOpenNewTask={() => setIsNewTaskOpen(true)}
                     onOpenFiltersModal={() => setIsSettingsOpen(true)}
+                    onExportExcel={handleExportExcel}
+                    isExporting={isExporting}
                   />
                 )}
                 <BottomNav
@@ -957,7 +986,7 @@ export default function App() {
                   activeView={activeView}
                   onViewChange={setActiveView}
                   assignees={teamMembers.length > 0 ? teamMembers : []}
-                  onExportCsv={handleExportCsv}
+                  onExportExcel={handleExportExcel}
                   isExporting={isExporting}
                 />
 

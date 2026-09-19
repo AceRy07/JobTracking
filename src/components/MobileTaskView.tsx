@@ -16,7 +16,9 @@ import {
   Search, 
   SlidersHorizontal,
   X,
-  BarChart3
+  BarChart3,
+  Download,
+  Loader2
 } from 'lucide-react';
 import { Task, TaskStatus, Project, getTaskAssignees } from '../types';
 import { AssigneeAvatarGroup } from './AssigneeAvatarGroup';
@@ -28,6 +30,8 @@ interface MobileTaskViewProps {
   onSelectTask: (task: Task) => void;
   onOpenNewTask: () => void;
   onOpenFiltersModal?: () => void;
+  onExportExcel?: (tasks?: Task[]) => void;
+  isExporting?: boolean;
   projects?: Project[];
   selectedProject?: string | null;
   onSelectProject?: (proj: string | null) => void;
@@ -40,6 +44,8 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
   onSelectTask,
   onOpenNewTask,
   onOpenFiltersModal,
+  onExportExcel,
+  isExporting = false,
   projects = [],
   selectedProject = null,
   onSelectProject
@@ -230,6 +236,16 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
             <span>Bana Atananlar</span>
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => onExportExcel?.(filteredTasks)}
+          disabled={isExporting || !onExportExcel}
+          className="w-full h-10 inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          <span>{isExporting ? 'Excel hazırlanıyor...' : 'Excel olarak dışa aktar'}</span>
+        </button>
       </section>
 
       {/* 3. STACKED TASK CARDS LIST */}
