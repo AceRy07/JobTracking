@@ -9,8 +9,7 @@ export async function getTeamMembers(): Promise<TeamMemberRow[]> {
 
   const { data, error } = await supabase
     .from('team_members')
-    .select('*')
-    .order('created_at', { ascending: true });
+    .select('*');
 
   if (error) {
     console.error('Ekip üyeleri alınırken hata oluştu:', error.message);
@@ -25,7 +24,7 @@ export async function addTeamMember(member: TeamMemberInsert): Promise<TeamMembe
 
   const { data, error } = await supabase
     .from('team_members')
-    .insert(member as any)
+    .insert({ ...member, id: undefined } as any)
     .select()
     .single();
 
@@ -87,13 +86,9 @@ export function teamMemberRowToAssignee(row: TeamMemberRow): Assignee {
 
 export function assigneeToTeamMemberInsert(assignee: Assignee): TeamMemberInsert {
   return {
-    id: assignee.id,
     name: assignee.name,
     role: assignee.role || 'Üye',
-    initials: assignee.initials || 'U',
-    avatar_url: assignee.avatarUrl || null,
-    badge_bg: assignee.badgeBg || 'bg-indigo-100',
-    badge_color: assignee.badgeColor || 'text-indigo-800'
+    initials: assignee.initials || 'U'
   };
 }
 

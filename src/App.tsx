@@ -142,6 +142,21 @@ const MobileTeamMemberRow: React.FC<{
   );
 };
 
+// Supabase team_members.id (uuid) kolonuyla uyumsuz eski/yerel-kalma id'leri ayırt etmek için
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// crypto.randomUUID yalnızca güvenli bağlamda (https/localhost) mevcut; ağ IP'si üzerinden http erişiminde manuel üretime düşer
+function generateUuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16);
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // Eski isimleri yeni ekip listesine pürüzsüz eşleme yardımcısı
 function migrateAssignees(rawTasks: Task[], fallbackAssignee: Assignee): Task[] {
   return rawTasks.map(t => {
@@ -493,7 +508,7 @@ export default function App() {
   };
 
   const handleAddTeamMember = async (member: Assignee) => {
-    const uniqueId = member.id || `member-${Date.now()}`;
+    const uniqueId = member.id || generateUuid();
     const newMember: Assignee = {
       ...member,
       id: uniqueId,
@@ -516,6 +531,8 @@ export default function App() {
         setTeamMembers(prev => prev.map(item => item.id === uniqueId ? teamMemberRowToAssignee(createdRow) : item));
       } catch (err) {
         console.error('Supabase ekip üyesi ekleme hatası:', err);
+        setTeamMembers(prev => prev.filter(item => item.id !== uniqueId));
+        showToast(`Ekip üyesi Supabase'e eklenemedi: ${err instanceof Error ? err.message : 'Bilinmeyen hata'}`);
       }
     }
   };
@@ -526,7 +543,7 @@ export default function App() {
     if (!trimmedName) return;
 
     handleAddTeamMember({
-      id: `member-${Date.now()}`,
+      id: generateUuid(),
       name: trimmedName,
       role: mobileMemberRole.trim() || 'Üye',
       initials: trimmedName
@@ -561,6 +578,18 @@ export default function App() {
     showToast(`"${trimmedName}" bilgileri güncellendi.`);
 
     if (isSupabaseConfigured) {
+      // Eski/senkronize olmamış kayıtlar (uuid formatında olmayan id) Supabase'de bulunmaz, bu yüzden önce oluşturulur.
+      if (!UUID_REGEX.test(memberId)) {
+        try {
+          const createdRow = await addTeamMember(assigneeToTeamMemberInsert(optimisticMember));
+          setTeamMembers(prev => prev.map(member => member.id === memberId ? teamMemberRowToAssignee(createdRow) : member));
+        } catch (err) {
+          console.error('Supabase ekip üyesi senkronizasyon hatası:', err);
+          showToast('Ekip üyesi Supabase ile senkronize edilemedi.');
+        }
+        return;
+      }
+
       try {
         const updatedRow = await updateTeamMember(memberId, { name: trimmedName, role: trimmedRole });
         setTeamMembers(prev => prev.map(member => member.id === memberId ? teamMemberRowToAssignee(updatedRow) : member));
@@ -579,7 +608,8 @@ export default function App() {
     setTeamMembers(prev => prev.filter(member => member.id !== memberId));
     showToast(`"${target.name}" ekipten kaldırıldı.`);
 
-    if (isSupabaseConfigured) {
+    // Uuid formatında olmayan id, hiç Supabase'e ulaşmamış eski bir kayıt demektir; silinecek bir şey yok.
+    if (isSupabaseConfigured && UUID_REGEX.test(memberId)) {
       try {
         await deleteTeamMember(memberId);
       } catch (err) {

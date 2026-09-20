@@ -2,6 +2,18 @@ import React, { useState } from 'react';
 import { X, Building2, Users, Folder, Trash2, Plus, Check, Pencil } from 'lucide-react';
 import { Assignee, Project } from '../types';
 
+// crypto.randomUUID yalnızca güvenli bağlamda (https/localhost) mevcut; ağ IP'si üzerinden http erişiminde manuel üretime düşer
+function generateUuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16);
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 interface WorkspaceSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -48,7 +60,7 @@ export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
       .join('') || 'U';
 
     onAddTeamMember({
-      id: `member-${Date.now()}`,
+      id: generateUuid(),
       name: trimmedName,
       role: memberRole.trim() || 'Üye',
       initials,
