@@ -87,6 +87,9 @@ import {
   subscribeToTeamMembers
 } from './lib/teamMembers';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { isDateInRange } from './utils/dateUtils';
+
+const WORKSPACE_NAME = 'The West Wing';
 
 const MobileTeamMemberRow: React.FC<{
   member: Assignee;
@@ -217,7 +220,7 @@ export default function App() {
     return [];
   });
 
-  const [workspaceName, setWorkspaceName] = useState('Acme Tech Workspace');
+  const [workspaceName, setWorkspaceName] = useState(WORKSPACE_NAME);
   const [activeView, setActiveView] = useState<ActiveView>('tablo');
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
@@ -444,15 +447,22 @@ export default function App() {
         if (selectedStatus === 'Kritik' && t.status !== 'Kritik') return false;
       }
 
+      if (!isDateInRange(t.dueDate, dateRangeFilter as 'all' | 'this-week' | 'next-week' | 'this-month')) {
+        return false;
+      }
+
       return true;
     });
-  }, [tasks, searchQuery, selectedProject, selectedAssignee, selectedStatus]);
+  }, [tasks, searchQuery, selectedProject, selectedAssignee, selectedStatus, dateRangeFilter]);
 
   // Task Actions
   const handleToggleComplete = async (taskId: string) => {
     let targetTask: Task | undefined;
+    let previousTasks: Task[] = [];
 
-    setTasks(prev => prev.map(t => {
+    setTasks(prev => {
+      previousTasks = prev;
+      return prev.map(t => {
       if (t.id === taskId) {
         targetTask = t;
         const nextCompleted = !t.completed;
@@ -466,7 +476,8 @@ export default function App() {
         };
       }
       return t;
-    }));
+      });
+    });
 
     if (isSupabaseConfigured && targetTask) {
       const nextCompleted = !targetTask.completed;
@@ -477,12 +488,15 @@ export default function App() {
           due_status_note: nextCompleted ? 'Tamamlandı' : (targetTask.dueStatusNote ?? null)
         });
       } catch (e) {
+        setTasks(previousTasks);
         console.error('Supabase durum güncelleme hatası:', e);
+        showToast('Görev durumu kaydedilemedi; eski haline döndürüldü.');
       }
     }
   };
 
   const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
+    const previousTasks = tasks;
     setTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return {
@@ -502,7 +516,9 @@ export default function App() {
           completed: newStatus === 'Bitti'
         });
       } catch (e) {
+        setTasks(previousTasks);
         console.error('Supabase durum güncelleme hatası:', e);
+        showToast('Görev durumu kaydedilemedi; eski haline döndürüldü.');
       }
     }
   };
@@ -585,6 +601,7 @@ export default function App() {
           setTeamMembers(prev => prev.map(member => member.id === memberId ? teamMemberRowToAssignee(createdRow) : member));
         } catch (err) {
           console.error('Supabase ekip üyesi senkronizasyon hatası:', err);
+          setTeamMembers(prev => prev.map(member => member.id === memberId ? previousMember : member));
           showToast('Ekip üyesi Supabase ile senkronize edilemedi.');
         }
         return;
@@ -623,6 +640,7 @@ export default function App() {
   const handleCreateProject = async (projectData: { name: string; color: string; description?: string }) => {
     const trimmedName = projectData.name.trim();
     const tempId = `p-${Date.now()}`;
+    const previousSelectedProject = selectedProject;
     const newProject: Project = {
       id: tempId,
       name: trimmedName,
@@ -639,6 +657,9 @@ export default function App() {
         setProjects(prev => prev.map(p => p.id === tempId ? projectRowToProject(createdRow) : p));
       } catch (err) {
         console.error('Supabase proje ekleme hatası:', err);
+        setProjects(prev => prev.filter(project => project.id !== tempId));
+        setSelectedProject(previousSelectedProject);
+        showToast('Proje kaydedilemedi; değişiklik geri alındı.');
       }
     }
   };
@@ -650,6 +671,9 @@ export default function App() {
     setProjects(prev => prev.filter(p => p.id !== projectId));
 
     const affectedTasks = tasks.filter(t => t.project === target.name);
+    const previousProjects = projects;
+    const previousTasks = tasks;
+    const previousSelectedProject = selectedProject;
 
     if (deleteTasks) {
       setTasks(prev => prev.filter(t => t.project !== target.name));
@@ -673,6 +697,10 @@ export default function App() {
         }
       } catch (err) {
         console.error('Supabase proje silme hatası:', err);
+        setProjects(previousProjects);
+        setTasks(previousTasks);
+        setSelectedProject(previousSelectedProject);
+        showToast('Proje silinemedi; değişiklik geri alındı.');
       }
     }
   };
@@ -699,11 +727,14 @@ export default function App() {
         setTasks(prev => prev.map(t => t.id === tempId ? taskRowToTask(createdRow) : t));
       } catch (err) {
         console.error('Supabase görev ekleme hatası:', err);
+        setTasks(prev => prev.filter(task => task.id !== tempId));
+        showToast('Görev kaydedilemedi; değişiklik geri alındı.');
       }
     }
   };
 
   const handleUpdateTask = async (updatedTask: Task) => {
+    const previousTask = tasks.find(task => task.id === updatedTask.id);
     setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
     showToast(`"${updatedTask.title}" güncellendi.`);
 
@@ -712,6 +743,10 @@ export default function App() {
         await updateTask(updatedTask.id, taskToTaskInsert(updatedTask));
       } catch (err) {
         console.error('Supabase güncelleme hatası:', err);
+        if (previousTask) {
+          setTasks(prev => prev.map(task => task.id === updatedTask.id ? previousTask : task));
+        }
+        showToast('Görev güncellenemedi; değişiklik geri alındı.');
       }
     }
   };
@@ -726,6 +761,8 @@ export default function App() {
         await deleteTask(taskId);
       } catch (err) {
         console.error('Supabase silme hatası:', err);
+        if (target) setTasks(prev => [target, ...prev]);
+        showToast('Görev silinemedi; geri yüklendi.');
       }
     }
   };
@@ -748,6 +785,8 @@ export default function App() {
         setTasks(prev => prev.map(t => t.id === tempId ? taskRowToTask(createdRow) : t));
       } catch (err) {
         console.error('Supabase görev çoğaltma hatası:', err);
+        setTasks(prev => prev.filter(task => task.id !== tempId));
+        showToast('Görev çoğaltılamadı; değişiklik geri alındı.');
       }
     }
   };

@@ -32,11 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
 
-  const workspaces = [
-    'Acme Tech Workspace',
-    'FinTech Core Team',
-    'Design System Hub'
-  ];
+  const workspaces = ['The West Wing'];
 
   const isConnected = supabaseConnected !== undefined ? supabaseConnected : isSupabaseConfigured;
 

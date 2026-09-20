@@ -146,3 +146,78 @@ export function calculateDueNote(dueDateStr?: string): string {
     return `${diffDays} gün kaldı`;
   }
 }
+
+export type DateRangeFilter = 'all' | 'this-week' | 'next-week' | 'this-month';
+
+function parseDateValue(dateStr: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day, 12);
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(dateStr)) {
+    return new Date(dateStr);
+  }
+
+  const parts = dateStr.trim().split(/[\s,]+/);
+  if (parts.length >= 3) {
+    const day = parseInt(parts[0], 10);
+    const monthIndex = TR_MONTHS_SHORT.findIndex(
+      month => month.toLowerCase() === parts[1].toLowerCase()
+    );
+    const year = parseInt(parts[2], 10);
+    if (!isNaN(day) && monthIndex !== -1 && !isNaN(year)) {
+      const [hours = 0, minutes = 0] = (parts[3] || '').split(':').map(Number);
+      return new Date(year, monthIndex, day, hours, minutes);
+    }
+  }
+
+  return new Date(dateStr);
+}
+
+export function isDateInRange(dateStr: string | undefined, range: DateRangeFilter, referenceDate = new Date()): boolean {
+  if (range === 'all') return true;
+  if (!dateStr) return false;
+
+  const date = parseDateValue(dateStr);
+  if (isNaN(date.getTime())) return false;
+
+  const startOfDay = (value: Date) => {
+    const result = new Date(value);
+    result.setHours(0, 0, 0, 0);
+    return result;
+  };
+  const endOfDay = (value: Date) => {
+    const result = new Date(value);
+    result.setHours(23, 59, 59, 999);
+    return result;
+  };
+
+  const today = startOfDay(referenceDate);
+  const dayOfWeek = today.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const thisWeekStart = new Date(today);
+  thisWeekStart.setDate(today.getDate() + mondayOffset);
+  const thisWeekEnd = new Date(thisWeekStart);
+  thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+
+  if (range === 'this-week') {
+    return date >= thisWeekStart && date <= endOfDay(thisWeekEnd);
+  }
+
+  if (range === 'next-week') {
+    const nextWeekStart = new Date(thisWeekStart);
+    nextWeekStart.setDate(thisWeekStart.getDate() + 7);
+    const nextWeekEnd = new Date(nextWeekStart);
+    nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
+    return date >= nextWeekStart && date <= endOfDay(nextWeekEnd);
+  }
+
+  if (range === 'this-month') {
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return date >= monthStart && date <= endOfDay(monthEnd);
+  }
+
+  return true;
+}
