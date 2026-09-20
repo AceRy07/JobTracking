@@ -282,6 +282,23 @@ export default function App() {
     }
   }, [projects]);
 
+  // Supabase görevleri yalnızca assignee ID'siyle döner; ekip listesi geldikten sonra isimleri çözümler.
+  useEffect(() => {
+    if (teamMembers.length === 0) return;
+
+    setTasks(prevTasks => prevTasks.map(task => {
+      const resolvedAssignees = getTaskAssignees(task).map(assignee => (
+        teamMembers.find(member => member.id === assignee.id) || assignee
+      ));
+
+      return {
+        ...task,
+        assignees: resolvedAssignees,
+        assignee: resolvedAssignees[0]
+      };
+    }));
+  }, [teamMembers]);
+
   // Supabase ile başlangıç senkronizasyonu ve gerçek zamanlı (Realtime) dinleme
   useEffect(() => {
     if (!isSupabaseConfigured) return;
