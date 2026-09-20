@@ -801,13 +801,14 @@ export default function App() {
 
   // Excel Export
   const handleExportExcel = (exportTasks = filteredTasks) => {
+    const tasksToExport = Array.isArray(exportTasks) ? exportTasks : filteredTasks;
     setIsExporting(true);
     setTimeout(() => {
       try {
         const exportedAt = new Date();
         const exportedAtText = exportedAt.toLocaleString('tr-TR');
         const taskHeaders = ['Görev Kodu', 'Görev', 'Açıklama', 'Proje', 'Başlangıç', 'Teslim', 'Sorumlular', 'Durum', 'Tamamlandı', 'Öncelik'];
-        const taskRows = exportTasks.map(task => ({
+        const taskRows = tasksToExport.map(task => ({
           'Görev Kodu': task.code,
           'Görev': task.title,
           'Açıklama': task.details,
