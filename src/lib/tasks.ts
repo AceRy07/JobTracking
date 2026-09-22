@@ -121,6 +121,7 @@ export function taskRowToTask(row: TaskRow): Task {
  */
 export function taskToTaskInsert(task: Omit<Task, 'id' | 'createdAt'> | Task): TaskInsert {
   return {
+    ...('id' in task ? { id: task.id } : {}),
     code: task.code,
     title: task.title,
     details: task.details ?? null,

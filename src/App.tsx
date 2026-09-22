@@ -1,60 +1,60 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Header 
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  Header
 } from './components/Header';
-import { 
-  Sidebar 
+import {
+  Sidebar
 } from './components/Sidebar';
-import { 
-  StatsCards 
+import {
+  StatsCards
 } from './components/StatsCards';
-import { 
-  ControlBar 
+import {
+  ControlBar
 } from './components/ControlBar';
-import { 
-  TaskTableView 
+import {
+  TaskTableView
 } from './components/TaskTableView';
-import { 
-  TaskKanbanView 
+import {
+  TaskKanbanView
 } from './components/TaskKanbanView';
-import { 
-  TaskTimelineView 
+import {
+  TaskTimelineView
 } from './components/TaskTimelineView';
-import { 
-  TaskCalendarView 
+import {
+  TaskCalendarView
 } from './components/TaskCalendarView';
-import { 
-  MobileTaskView 
+import {
+  MobileTaskView
 } from './components/MobileTaskView';
-import { 
-  BottomNav 
+import {
+  BottomNav
 } from './components/BottomNav';
-import { 
-  ProductivityWidgets 
+import {
+  ProductivityWidgets
 } from './components/ProductivityWidgets';
-import { 
-  NewTaskModal 
+import {
+  NewTaskModal
 } from './components/NewTaskModal';
-import { 
-  TaskDetailModal 
+import {
+  TaskDetailModal
 } from './components/TaskDetailModal';
-import { 
-  EditTaskModal 
+import {
+  EditTaskModal
 } from './components/EditTaskModal';
-import { 
-  WorkspaceSettingsModal 
+import {
+  WorkspaceSettingsModal
 } from './components/WorkspaceSettingsModal';
-import { 
-  ReportsModal 
+import {
+  ReportsModal
 } from './components/ReportsModal';
-import { 
-  ShortcutsModal 
+import {
+  ShortcutsModal
 } from './components/ShortcutsModal';
-import { 
-  NewProjectModal 
+import {
+  NewProjectModal
 } from './components/NewProjectModal';
-import { 
-  DeleteProjectModal 
+import {
+  DeleteProjectModal
 } from './components/DeleteProjectModal';
 
 import { ActiveView, Assignee, Project, Task, TaskStatus, getTaskAssignees } from './types';
@@ -72,6 +72,7 @@ import {
 import {
   getProjects,
   addProject,
+  updateProject,
   deleteProject,
   projectRowToProject,
   projectToProjectInsert,
@@ -175,6 +176,11 @@ function migrateAssignees(rawTasks: Task[], fallbackAssignee: Assignee): Task[] 
 }
 
 export default function App() {
+  // Henüz Supabase'e kaydedilmemiş görevler için bekleyen ekleme işlemleri (id -> promise).
+  // Diğer işlemler (tamamlama, güncelleme, silme) bu id için önce eklemenin bitmesini bekler,
+  // aksi halde satır DB'de oluşmadan önce gelen UPDATE isteği eşleşmeyip sessizce başarısız olur.
+  const pendingTaskInserts = useRef<Map<string, Promise<unknown>>>(new Map());
+
   // Persistence state
   const [teamMembers, setTeamMembers] = useState<Assignee[]>(() => {
     try {
@@ -321,19 +327,31 @@ export default function App() {
         const hasRemoteData = remoteProjects.length > 0 || remoteTasks.length > 0 || remoteTeamMembers.length > 0;
         const hasLocalData = projects.length > 0 || tasks.length > 0 || teamMembers.length > 0;
 
+        // Bu cihazda Supabase'e daha önce hiç senkronize olunmadıysa (ilk kurulum/demo verisi)
+        // yerel önbellek uzak veritabanına aktarılır. Aksi halde, uzak taraf boşsa (örn.
+        // başka bir cihazdan silindiyse) bu cihazın eski localStorage önbelleği asla geri
+        // yüklenmez — aksi halde her girişte silinmiş kayıtlar Supabase'e yeniden yazılırdı.
+        const alreadySeeded = localStorage.getItem('is_takip_bootstrap_seeded') === 'true';
+
         if (remoteProjects.length > 0) {
           setProjects(remoteProjects.map(projectRowToProject));
-        } else if (projects.length > 0) {
+        } else if (projects.length > 0 && !alreadySeeded) {
           const created = await Promise.all(projects.map(p => addProject(projectToProjectInsert(p))));
           if (isMounted) setProjects(created.map(projectRowToProject));
+        } else if (remoteProjects.length === 0 && alreadySeeded) {
+          setProjects([]);
         }
 
         if (remoteTasks.length > 0) {
           setTasks(remoteTasks.map(taskRowToTask));
-        } else if (tasks.length > 0) {
+        } else if (tasks.length > 0 && !alreadySeeded) {
           const created = await Promise.all(tasks.map(t => addTask(taskToTaskInsert(t))));
           if (isMounted) setTasks(created.map(taskRowToTask));
+        } else if (remoteTasks.length === 0 && alreadySeeded) {
+          setTasks([]);
         }
+
+        localStorage.setItem('is_takip_bootstrap_seeded', 'true');
 
         if (hasRemoteData || hasLocalData) {
           showToast('Supabase ile senkronize edildi.');
@@ -437,7 +455,7 @@ export default function App() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesAssignee = taskAssignees.some(a => a.name.toLowerCase().includes(q));
-        const matches = 
+        const matches =
           t.title.toLowerCase().includes(q) ||
           t.details.toLowerCase().includes(q) ||
           t.code.toLowerCase().includes(q) ||
@@ -474,35 +492,35 @@ export default function App() {
 
   // Task Actions
   const handleToggleComplete = async (taskId: string) => {
-    let targetTask: Task | undefined;
-    let previousTasks: Task[] = [];
+    // Compute the next state from the current (last-rendered) tasks array up front.
+    // Reading a variable set inside the setTasks updater callback right after
+    // calling setTasks doesn't work: React hasn't invoked that callback yet at
+    // that point, so the value would still be undefined and the Supabase call
+    // below would silently never fire.
+    const current = tasks.find(t => t.id === taskId);
+    if (!current) return;
 
-    setTasks(prev => {
-      previousTasks = prev;
-      return prev.map(t => {
-      if (t.id === taskId) {
-        targetTask = t;
-        const nextCompleted = !t.completed;
-        const nextStatus = nextCompleted ? 'Bitti' : 'Aktif';
-        showToast(nextCompleted ? `"${t.title}" tamamlandı olarak işaretlendi.` : `"${t.title}" aktifleştirildi.`);
-        return {
-          ...t,
-          completed: nextCompleted,
-          status: nextStatus,
-          dueStatusNote: nextCompleted ? 'Tamamlandı' : t.dueStatusNote
-        };
-      }
-      return t;
-      });
-    });
+    const previousTasks = tasks;
+    const wasDone = current.completed || current.status === 'Bitti';
+    const nextCompleted = !wasDone;
+    const nextStatus: TaskStatus = nextCompleted ? 'Bitti' : 'Aktif';
+    const nextDueStatusNote = nextCompleted ? 'Tamamlandı' : current.dueStatusNote;
 
-    if (isSupabaseConfigured && targetTask) {
-      const nextCompleted = !targetTask.completed;
+    setTasks(prev => prev.map(t => t.id === taskId ? {
+      ...t,
+      completed: nextCompleted,
+      status: nextStatus,
+      dueStatusNote: nextDueStatusNote
+    } : t));
+    showToast(nextCompleted ? `"${current.title}" tamamlandı olarak işaretlendi.` : `"${current.title}" aktifleştirildi.`);
+
+    if (isSupabaseConfigured) {
       try {
+        await pendingTaskInserts.current.get(taskId);
         await updateTask(taskId, {
           completed: nextCompleted,
-          status: nextCompleted ? 'Bitti' : 'Aktif',
-          due_status_note: nextCompleted ? 'Tamamlandı' : (targetTask.dueStatusNote ?? null)
+          status: nextStatus,
+          due_status_note: nextDueStatusNote ?? null
         });
       } catch (e) {
         setTasks(previousTasks);
@@ -528,6 +546,7 @@ export default function App() {
 
     if (isSupabaseConfigured) {
       try {
+        await pendingTaskInserts.current.get(taskId);
         await updateTask(taskId, {
           status: newStatus,
           completed: newStatus === 'Bitti'
@@ -723,7 +742,9 @@ export default function App() {
   };
 
   const handleCreateTask = async (newTaskData: Omit<Task, 'id' | 'createdAt'>) => {
-    const tempId = `task-${Date.now()}`;
+    // Gerçek bir UUID kullanılır ki DB satırı da aynı id ile oluşturulsun;
+    // böylece id değişimi olmaz ve hemen ardından gelen tamamla/güncelle işlemleri kaybolmaz.
+    const tempId = generateUuid();
     const newTask: Task = {
       ...newTaskData,
       id: tempId,
@@ -737,16 +758,25 @@ export default function App() {
     }
     showToast(`"${newTask.title}" [${newTask.project}] kaydedildi.`);
 
-    // Supabase entegrasyonu: Veritabanına kaydet ve gerçek UUID ile güncelle
+    // Supabase entegrasyonu: Veritabanına aynı id ile kaydet (yerel/görünen id ile DB kaydı ayrışmasın)
     if (isSupabaseConfigured) {
-      try {
-        const createdRow = await addTask(taskToTaskInsert(newTask));
-        setTasks(prev => prev.map(t => t.id === tempId ? taskRowToTask(createdRow) : t));
-      } catch (err) {
-        console.error('Supabase görev ekleme hatası:', err);
-        setTasks(prev => prev.filter(task => task.id !== tempId));
-        showToast('Görev kaydedilemedi; değişiklik geri alındı.');
-      }
+      const insertPromise = (async () => {
+        try {
+          const createdRow = await addTask(taskToTaskInsert(newTask));
+          // Sadece sunucu tarafından üretilen alanları senkronize et; aradaki
+          // tamamlama/durum değişikliği gibi yerel güncellemelerin üzerine yazma.
+          setTasks(prev => prev.map(t => t.id === tempId ? { ...t, createdAt: createdRow.created_at } : t));
+        } catch (err) {
+          console.error('Supabase görev ekleme hatası:', err);
+          setTasks(prev => prev.filter(task => task.id !== tempId));
+          showToast('Görev kaydedilemedi; değişiklik geri alındı.');
+          throw err;
+        } finally {
+          pendingTaskInserts.current.delete(tempId);
+        }
+      })();
+      pendingTaskInserts.current.set(tempId, insertPromise);
+      insertPromise.catch(() => { });
     }
   };
 
@@ -757,6 +787,7 @@ export default function App() {
 
     if (isSupabaseConfigured) {
       try {
+        await pendingTaskInserts.current.get(updatedTask.id);
         await updateTask(updatedTask.id, taskToTaskInsert(updatedTask));
       } catch (err) {
         console.error('Supabase güncelleme hatası:', err);
@@ -775,6 +806,7 @@ export default function App() {
 
     if (isSupabaseConfigured) {
       try {
+        await pendingTaskInserts.current.get(taskId);
         await deleteTask(taskId);
       } catch (err) {
         console.error('Supabase silme hatası:', err);
@@ -784,8 +816,52 @@ export default function App() {
     }
   };
 
+  const handleUpdateProject = async (projectId: string, updates: { name?: string; color?: string }) => {
+    const target = projects.find(p => p.id === projectId);
+    if (!target) return;
+
+    const nextName = updates.name?.trim() || target.name;
+    const nextColor = updates.color || target.color;
+    if (nextName === target.name && nextColor === target.color) return;
+
+    const oldName = target.name;
+    const previousProjects = projects;
+    const previousTasks = tasks;
+    const previousSelectedProject = selectedProject;
+    const nameChanged = nextName !== oldName;
+
+    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, name: nextName, color: nextColor } : p));
+    if (nameChanged) {
+      // Görevler projeyi ada göre referanslıyor, bu yüzden yeniden adlandırmada onları da güncellemeliyiz.
+      setTasks(prev => prev.map(t => t.project === oldName ? { ...t, project: nextName } : t));
+      if (selectedProject === oldName) {
+        setSelectedProject(nextName);
+      }
+    }
+    showToast(`"${oldName}" projesi güncellendi.`);
+
+    if (isSupabaseConfigured) {
+      try {
+        await updateProject(projectId, { name: nextName, color: nextColor });
+        if (nameChanged) {
+          const affectedTasks = previousTasks.filter(t => t.project === oldName);
+          await Promise.all(affectedTasks.map(t => {
+            const pending = pendingTaskInserts.current.get(t.id);
+            return (pending ? pending.catch(() => { }) : Promise.resolve()).then(() => updateTask(t.id, { project: nextName }));
+          }));
+        }
+      } catch (err) {
+        console.error('Supabase proje güncelleme hatası:', err);
+        setProjects(previousProjects);
+        setTasks(previousTasks);
+        setSelectedProject(previousSelectedProject);
+        showToast('Proje güncellenemedi; değişiklik geri alındı.');
+      }
+    }
+  };
+
   const handleDuplicateTask = async (task: Task) => {
-    const tempId = `task-${Date.now()}`;
+    const tempId = generateUuid();
     const duplicated: Task = {
       ...task,
       id: tempId,
@@ -797,14 +873,21 @@ export default function App() {
     showToast(`"${duplicated.title}" çoğaltıldı.`);
 
     if (isSupabaseConfigured) {
-      try {
-        const createdRow = await addTask(taskToTaskInsert(duplicated));
-        setTasks(prev => prev.map(t => t.id === tempId ? taskRowToTask(createdRow) : t));
-      } catch (err) {
-        console.error('Supabase görev çoğaltma hatası:', err);
-        setTasks(prev => prev.filter(task => task.id !== tempId));
-        showToast('Görev çoğaltılamadı; değişiklik geri alındı.');
-      }
+      const insertPromise = (async () => {
+        try {
+          const createdRow = await addTask(taskToTaskInsert(duplicated));
+          setTasks(prev => prev.map(t => t.id === tempId ? { ...t, createdAt: createdRow.created_at } : t));
+        } catch (err) {
+          console.error('Supabase görev çoğaltma hatası:', err);
+          setTasks(prev => prev.filter(task => task.id !== tempId));
+          showToast('Görev çoğaltılamadı; değişiklik geri alındı.');
+          throw err;
+        } finally {
+          pendingTaskInserts.current.delete(tempId);
+        }
+      })();
+      pendingTaskInserts.current.set(tempId, insertPromise);
+      insertPromise.catch(() => { });
     }
   };
 
@@ -948,6 +1031,7 @@ export default function App() {
                   onSelectProject={setSelectedProject}
                   onToggleComplete={handleToggleComplete}
                   onEditTask={setEditingTask}
+                  onDeleteTask={handleDeleteTask}
                   onSelectTask={setInspectingTask}
                   onOpenNewTask={() => setIsNewTaskOpen(true)}
                   onOpenFiltersModal={() => setIsSettingsOpen(true)}
@@ -957,7 +1041,14 @@ export default function App() {
               )}
               <BottomNav
                 activeTab={mobileTab}
-                setActiveTab={setMobileTab}
+                setActiveTab={(tab) => {
+                  // "Ayarlar" sekmesinin kendi görünümü yok; doğrudan ayarlar modalını açar.
+                  if (tab === 'ayarlar') {
+                    setIsSettingsOpen(true);
+                  } else {
+                    setMobileTab(tab);
+                  }
+                }}
               />
             </div>
           </div>
@@ -1036,6 +1127,7 @@ export default function App() {
                     onSelectProject={setSelectedProject}
                     onToggleComplete={handleToggleComplete}
                     onEditTask={setEditingTask}
+                    onDeleteTask={handleDeleteTask}
                     onSelectTask={setInspectingTask}
                     onOpenNewTask={() => setIsNewTaskOpen(true)}
                     onOpenFiltersModal={() => setIsSettingsOpen(true)}
@@ -1045,7 +1137,14 @@ export default function App() {
                 )}
                 <BottomNav
                   activeTab={mobileTab}
-                  setActiveTab={setMobileTab}
+                  setActiveTab={(tab) => {
+                    // "Ayarlar" sekmesinin kendi görünümü yok; doğrudan ayarlar modalını açar.
+                    if (tab === 'ayarlar') {
+                      setIsSettingsOpen(true);
+                    } else {
+                      setMobileTab(tab);
+                    }
+                  }}
                 />
               </div>
 
@@ -1201,6 +1300,7 @@ export default function App() {
         projects={projects}
         teamMembers={teamMembers}
         onDeleteProject={(proj) => setProjectToDelete(proj)}
+        onUpdateProject={handleUpdateProject}
         onOpenNewProject={() => setIsNewProjectOpen(true)}
         onAddTeamMember={handleAddTeamMember}
         onUpdateTeamMember={handleUpdateTeamMember}

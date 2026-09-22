@@ -18,7 +18,8 @@ import {
   X,
   BarChart3,
   Download,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { Task, TaskStatus, Project, getTaskAssignees } from '../types';
 import { AssigneeAvatarGroup } from './AssigneeAvatarGroup';
@@ -27,6 +28,7 @@ interface MobileTaskViewProps {
   tasks: Task[];
   onToggleComplete: (taskId: string) => void;
   onEditTask: (task: Task) => void;
+  onDeleteTask: (taskId: string) => void;
   onSelectTask: (task: Task) => void;
   onOpenNewTask: () => void;
   onOpenFiltersModal?: () => void;
@@ -41,6 +43,7 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
   tasks,
   onToggleComplete,
   onEditTask,
+  onDeleteTask,
   onSelectTask,
   onOpenNewTask,
   onOpenFiltersModal,
@@ -346,10 +349,19 @@ export const MobileTaskView: React.FC<MobileTaskViewProps> = ({
                   <CheckCircle2 className="w-4 h-4" />
                   <span>{isDone ? 'Geri Al' : 'Görevi Tamamla'}</span>
                 </button>
-                <button onClick={() => onEditTask(task)} className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors">
-                  <Edit3 className="w-4 h-4" />
-                  <span>Düzenle</span>
-                </button>
+                <div className="flex items-stretch gap-2">
+                  <button onClick={() => onEditTask(task)} className="flex-1 h-11 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors">
+                    <Edit3 className="w-4 h-4" />
+                    <span>Düzenle</span>
+                  </button>
+                  <button
+                    onClick={() => onDeleteTask(task.id)}
+                    className="w-11 h-11 shrink-0 inline-flex items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                    title="Görevi Sil"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </article>
           );

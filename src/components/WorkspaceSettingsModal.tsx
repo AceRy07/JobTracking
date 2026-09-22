@@ -22,6 +22,7 @@ interface WorkspaceSettingsModalProps {
   projects?: Project[];
   teamMembers?: Assignee[];
   onDeleteProject?: (project: Project) => void;
+  onUpdateProject?: (projectId: string, updates: { name?: string; color?: string }) => void;
   onOpenNewProject?: () => void;
   onAddTeamMember?: (member: Assignee) => void;
   onUpdateTeamMember?: (memberId: string, name: string, role: string) => void;
@@ -36,6 +37,7 @@ export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
   projects = [],
   teamMembers = [],
   onDeleteProject,
+  onUpdateProject,
   onOpenNewProject,
   onAddTeamMember,
   onUpdateTeamMember,
@@ -46,6 +48,8 @@ export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [editingMemberName, setEditingMemberName] = useState('');
   const [editingMemberRole, setEditingMemberRole] = useState('');
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectName, setEditingProjectName] = useState('');
 
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,35 +131,75 @@ export const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
           <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden bg-gray-50/50">
             {projects.map((proj) => (
               <div key={proj.id} className="flex items-center justify-between p-2.5 bg-white hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: proj.color }}
-                  />
-                  <div className="min-w-0">
-                    <span className="text-xs font-semibold text-gray-900 block truncate">
-                      {proj.name}
-                    </span>
-                    {proj.description && (
-                      <span className="text-[11px] text-gray-400 block truncate">
-                        {proj.description}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {onDeleteProject && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onDeleteProject(proj);
+                {editingProjectId === proj.id ? (
+                  <form
+                    className="flex flex-1 items-center gap-2"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const trimmed = editingProjectName.trim();
+                      if (trimmed) onUpdateProject?.(proj.id, { name: trimmed });
+                      setEditingProjectId(null);
                     }}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2"
-                    title={`"${proj.name}" projesini sil`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                    <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: proj.color }} />
+                    <input
+                      value={editingProjectName}
+                      onChange={(event) => setEditingProjectName(event.target.value)}
+                      autoFocus
+                      className="min-w-0 flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-indigo-500"
+                      aria-label="Proje adı"
+                    />
+                    <button type="submit" className="text-xs font-semibold text-indigo-600">Kaydet</button>
+                    <button type="button" onClick={() => setEditingProjectId(null)} className="text-xs text-gray-400 hover:text-gray-600">Vazgeç</button>
+                  </form>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: proj.color }}
+                      />
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-gray-900 block truncate">
+                          {proj.name}
+                        </span>
+                        {proj.description && (
+                          <span className="text-[11px] text-gray-400 block truncate">
+                            {proj.description}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                      {onUpdateProject && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingProjectId(proj.id);
+                            setEditingProjectName(proj.name);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title={`"${proj.name}" projesini yeniden adlandır`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {onDeleteProject && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onDeleteProject(proj);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title={`"${proj.name}" projesini sil`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             ))}
